@@ -1,0 +1,44 @@
+import { relations } from "drizzle-orm";
+import {
+  integer,
+  pgEnum,
+  pgTable,
+  varchar,
+  boolean,
+  bigint,
+  timestamp,
+  uuid,
+} from "drizzle-orm/pg-core";
+import { createSelectSchema } from "drizzle-zod";
+import type { z } from "zod";
+import { emergencyRequest } from "./emergencyRequest";
+import { feedback } from "./feedback";
+import { locationTracking } from "./locationTracking";
+
+export const userRolesEnum = pgEnum("role", ["admin", "user"]);
+
+export const user = pgTable("user", {
+  id: uuid("id").defaultRandom().primaryKey().unique(),
+  name: varchar({ length: 255 }).notNull(),
+  age: integer().notNull(),
+  phoneNumber: bigint("phone_number", { mode: "number" }).notNull().unique(),
+  email: varchar({ length: 255 }).notNull().unique(),
+  primaryAddress: varchar("primary_address", { length: 255 }).notNull(),
+  password: varchar({ length: 255 }).notNull(),
+  isVerfied: boolean("is_verified").default(false),
+  role: userRolesEnum().default("user"),
+  verificationToken: varchar("verification_token", { length: 255 }),
+  tokenExpiry: timestamp("token_expiry", { mode: "string" }),
+
+  createdAt: timestamp("created_at", { mode: "string" }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { mode: "string" }).notNull().defaultNow(),
+});
+
+export const userRelations = relations(user, ({ many }) => ({
+  emergencyRequest: many(emergencyRequest),
+  feedback: many(feedback),
+  locationTracking: many(locationTracking),
+}));
+
+export const usersSchema = createSelectSchema(user);
+export type TUser = z.infer<typeof usersSchema>;
