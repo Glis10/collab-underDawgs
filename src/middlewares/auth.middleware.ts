@@ -1,3 +1,4 @@
+import { TUser } from "@/db/schema";
 import ApiError from "@/utils/ApiError";
 import { asyncHandler } from "@/utils/asyncHandler";
 import { verifyJWT } from "@/utils/jwtTokens";
@@ -15,7 +16,7 @@ export const validateUser = asyncHandler(function validateUser(
     throw new ApiError(401, "Unauthorized");
   }
 
-  const decoded = verifyJWT(token);
+  const decoded = verifyJWT(token) as Partial<TUser>;
 
   req.user = decoded;
   next();
