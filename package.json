@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "dev": "npx nodemon",
+    "build": "tsc && tsc-alias",
+    "dev": "tsc-watch --onSuccess \"ts-node -r tsconfig-paths/register ./build/index.js\"",
     "lint": "eslint ./src/**/.ts"
   },
   "keywords": [],
@@ -23,9 +24,9 @@
     "@typescript-eslint/parser": "^8.26.1",
     "drizzle-kit": "^0.30.5",
     "eslint": "^9.22.0",
-    "nodemon": "^3.1.9",
     "ts-node": "^10.9.2",
-    "tsc-alias": "^1.8.10",
+    "tsc-watch": "^6.2.1",
+    "tsconfig-paths": "^4.2.0",
     "typescript": "^5.8.2"
   },
   "dependencies": {
