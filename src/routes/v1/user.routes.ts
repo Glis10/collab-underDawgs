@@ -1,21 +1,35 @@
 import {
+  forgotPassword,
   getProfile,
   getUser,
   loginUser,
+  logoutUser,
   registerUser,
+  resetPassword,
   updateUser,
   verifyUser,
-} from "@/controllers/user/user.controller";
-import { validateUser } from "@/middlewares/auth.middleware";
+} from "@/controllers/user.controller";
+import { validateRoleAuth } from "@/middlewares/auth.middleware";
 import express from "express";
 
 const userRouter = express.Router();
+const validateUser = validateRoleAuth(["user"]);
 
-userRouter.route("/").get(validateUser, getProfile);
-userRouter.route("/").post(getUser);
 userRouter.route("/register").post(registerUser);
 userRouter.route("/login").post(loginUser);
-userRouter.route("/update").put(validateUser, updateUser);
+userRouter
+  .route("/logout")
+  .get(validateRoleAuth(["admin", "user"]), logoutUser);
+
+userRouter
+  .route("/update")
+  .put(validateRoleAuth(["admin", "user"]), updateUser);
+
 userRouter.route("/verify").post(verifyUser);
+userRouter.route("/forgot-password").post(forgotPassword);
+userRouter.route("/reset-password").post(resetPassword);
+
+userRouter.route("/profile").get(validateUser, getProfile);
+userRouter.route("/:userId").get(getUser);
 
 export default userRouter;
