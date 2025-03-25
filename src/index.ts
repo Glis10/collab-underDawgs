@@ -1,22 +1,22 @@
 import "dotenv/config";
 import express from "express";
+
 import { Request, Response } from "express";
+import { createServer } from "http";
 import cors from "cors";
 import cookieParser from "cookie-parser";
+import { Server } from "socket.io";
 
 import { envConfig } from "@/config/env.config";
-import userRouter from "@/routes/v1/user.routes";
+import { v1Router } from "@/routes";
+import { handleSocketConnection } from "@/controllers/socket.controller";
+import { corsOptions } from "@/config";
+import ApiResponse from "./utils/ApiResponse";
 
 const app = express();
 const port = envConfig.port;
 
-app.use(
-  cors({
-    origin: "*",
-    allowedHeaders: ["Content-Type", "Authorization"],
-    methods: ["GET", "POST", "PUT", "DELETE"],
-  })
-);
+app.use(cors(corsOptions));
 
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true }));
@@ -26,8 +26,30 @@ app.get("/api/v1/healthcheck", (req: Request, res: Response) => {
   res.send("Server is up and running");
 });
 
-app.use("/api/v1/user", userRouter);
+// V1 API routes
+app.use("/api/v1", v1Router);
 
-app.listen(port, () => {
-  console.log(`Server is listening on: ${port}`);
+app.use((req: Request, res: Response) => {
+  res
+    .status(404)
+    .json(
+      new ApiResponse(404, `${req.method} route not found for ${req.url}`, null)
+    );
 });
+
+function startServer() {
+  try {
+    const httpServer = createServer(app);
+    const io = new Server(httpServer, { cors: corsOptions });
+
+    io.on("connection", handleSocketConnection);
+
+    httpServer.listen(port, () => {
+      console.log(`Server is listening on: ${port}`);
+    });
+  } catch (error) {
+    console.error("Error starting server", error);
+  }
+}
+
+startServer();
