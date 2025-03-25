@@ -1,5 +1,5 @@
 import { envConfig } from "@/config/env.config";
-import type { TUser } from "@/db/schema";
+import type { TServiceProvider, TUser } from "@/db/schema";
 import jwt, { type JwtPayload } from "jsonwebtoken";
 
 interface IJWTToken {
@@ -12,7 +12,7 @@ interface IJWTToken {
   exp?: number;
 }
 
-const generateJWT = (user: TUser) => {
+const generateJWT = (user: Partial<TUser> | Partial<TServiceProvider>) => {
   if (!envConfig.jwt_secret) {
     throw new Error("JWT secret not found in environment variables");
   }
@@ -23,7 +23,7 @@ const generateJWT = (user: TUser) => {
       name: user.name,
       email: user.email,
       phoneNumber: user.phoneNumber,
-      role: user.role,
+      role: (user as TUser).role ? (user as TUser).role : "service_provider",
     },
     envConfig.jwt_secret!,
     {
