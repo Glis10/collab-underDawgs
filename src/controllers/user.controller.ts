@@ -7,10 +7,11 @@ import ApiError from "@/utils/ApiError";
 import twilioClient from "@/utils/twilio";
 import ApiResponse from "@/utils/ApiResponse";
 import { asyncHandler } from "@/utils/asyncHandler";
-import { user } from "@/db/schema/user";
+import { newUserSchema, user, loginUserSchema, TUser } from "@/db/schema/user";
 import { generateJWT, verifyJWT } from "@/utils/jwtTokens";
 import { generateOtpToken } from "@/utils/otpTokens";
 import { getOtpMessage } from "@/constants";
+import { adminEmails } from "@/config";
 
 const sendOTP = async (phoneNumber: string): Promise<string | null> => {
   const otpToken = generateOtpToken(phoneNumber);
@@ -38,10 +39,36 @@ const sendOTP = async (phoneNumber: string): Promise<string | null> => {
 };
 
 const registerUser = asyncHandler(async (req: Request, res: Response) => {
-  const { name, phoneNumber, age, email, password, primaryAddress } = req.body;
+  const { name, phoneNumber, age, email, password, primaryAddress, role } =
+    req.body;
 
-  if (!name || !age || !email || !password || !phoneNumber || !primaryAddress) {
-    throw new ApiError(400, "Please provide all required fields");
+  const parsedValues = newUserSchema.safeParse({
+    name,
+    phoneNumber,
+    age,
+    email,
+    password,
+    primaryAddress,
+  });
+
+  if (role && role == "admin" && !adminEmails.includes(email)) {
+    throw new ApiError(401, "Admin email not authorized");
+  }
+
+  if (phoneNumber && /^[0-9]{10}$/.exec(phoneNumber) === null) {
+    throw new ApiError(400, "Invalid phone number");
+  }
+
+  if (!parsedValues.success) {
+    const validationError = new ApiError(
+      400,
+      "Error validating data",
+      parsedValues.error.errors.map(
+        (error) => `${error.path[0]} : ${error.message} `
+      )
+    );
+
+    return res.status(400).json(validationError);
   }
 
   const existingUser = await db.query.user.findFirst({
@@ -59,14 +86,7 @@ const registerUser = asyncHandler(async (req: Request, res: Response) => {
 
   const newUser = await db
     .insert(user)
-    .values({
-      name,
-      age,
-      phoneNumber,
-      email,
-      password: hashedPassword,
-      primaryAddress,
-    })
+    .values({ ...parsedValues.data, password: hashedPassword })
     .returning({
       name: user.name,
       age: user.age,
@@ -74,6 +94,10 @@ const registerUser = asyncHandler(async (req: Request, res: Response) => {
       email: user.email,
       primaryAddress: user.primaryAddress,
     });
+
+  if (!newUser) {
+    throw new ApiError(400, "Error registering user. Please try again");
+  }
 
   res
     .status(201)
@@ -85,16 +109,44 @@ const registerUser = asyncHandler(async (req: Request, res: Response) => {
 const loginUser = asyncHandler(async (req: Request, res: Response) => {
   const { phoneNumber, email, password } = req.body;
 
-  if (!phoneNumber && !email) {
-    throw new ApiError(400, "Please provide either phone number or email");
+  // TODO: check the validation schema
+  const parsedValues = loginUserSchema.safeParse(req.body);
+
+  if (!parsedValues.success) {
+    const validationError = new ApiError(
+      400,
+      "Error validating data",
+      parsedValues.error.errors.map(
+        (error) => `${error.path[0]} : ${error.message} `
+      )
+    );
+
+    return res.status(400).json(validationError);
   }
 
   const existingUser = await db.query.user.findFirst({
     where: or(eq(user.phoneNumber, phoneNumber), eq(user.email, email)),
+    columns: {
+      id: true,
+      name: true,
+      phoneNumber: true,
+      email: true,
+      age: true,
+      primaryAddress: true,
+      role: true,
+      password: true,
+      isVerfied: true,
+    },
   });
 
   if (!existingUser) {
     throw new ApiError(400, "User not found");
+  }
+
+  const isPasswordValid = await bcrypt.compare(password, existingUser.password);
+
+  if (!isPasswordValid) {
+    throw new ApiError(400, "Invalid credentials");
   }
 
   if (!existingUser.isVerfied) {
@@ -126,41 +178,56 @@ const loginUser = asyncHandler(async (req: Request, res: Response) => {
     );
   }
 
-  const isPasswordValid = await bcrypt.compare(password, existingUser.password);
-
-  if (!isPasswordValid) {
-    throw new ApiError(400, "Invalid credentials");
-  }
-
   const token = generateJWT(existingUser);
+  const loggedInUser: Partial<TUser> = JSON.parse(JSON.stringify(existingUser));
+  delete loggedInUser.password;
 
   res
     .status(200)
     .cookie("token", token)
-    .json(new ApiResponse(200, "User logged in successfully", { token }));
+    .json(
+      new ApiResponse(200, "User logged in successfully", {
+        user: loggedInUser,
+        token,
+      })
+    );
 });
 
 const logoutUser = asyncHandler(async (req: Request, res: Response) => {
-  const user = req.user;
+  const loggedInUser = req.user;
 
-  if (!user) {
+  if (!loggedInUser || !loggedInUser.id) {
     throw new ApiError(401, "Unauthorized");
+  }
+
+  const existingUser = await db.query.user.findFirst({
+    where: eq(user.id, loggedInUser.id),
+    columns: {
+      id: true,
+      name: true,
+      phoneNumber: true,
+      email: true,
+      age: true,
+      primaryAddress: true,
+    },
+  });
+
+  if (!existingUser) {
+    throw new ApiError(401, "Unauthorized User");
   }
 
   res
     .status(200)
     .clearCookie("token")
-    .json(new ApiResponse(200, "User logged out successfully", {}));
+    .json(
+      new ApiResponse(200, "User logged out successfully", {
+        user: existingUser,
+      })
+    );
 });
 
 const updateUser = asyncHandler(async (req: Request, res: Response) => {
   const loggedInUser = req.user;
-
-  const properties = ["name", "phoneNumber", "age", "email", "primaryAddress"];
-
-  if (!properties.some((prop) => req.body[prop])) {
-    throw new ApiError(400, "Please provide at least one field to update");
-  }
 
   if (!loggedInUser || !loggedInUser.id) {
     throw new ApiError(401, "Unauthorized");
@@ -173,17 +240,26 @@ const updateUser = asyncHandler(async (req: Request, res: Response) => {
   if (!existingUser) {
     throw new ApiError(401, "Unauthorized");
   }
+  const updateData = req.body;
 
-  const dataToUpdate: { [key: string]: any } = {};
-  properties.forEach((prop) => {
-    if (req.body[prop]) {
-      dataToUpdate[prop] = req.body[prop];
-    }
-  });
+  if (Object.keys(updateData).length === 0) {
+    throw new ApiError(400, "No data to update");
+  }
+
+  const invalidKeys = Object.keys(updateData).filter(
+    (key) => !Object.keys(user).includes(key)
+  );
+
+  if (invalidKeys.length > 0) {
+    throw new ApiError(
+      400,
+      `Invalid data to update. Invalid keys: ${invalidKeys}`
+    );
+  }
 
   const updatedUser = await db
     .update(user)
-    .set(dataToUpdate)
+    .set(updateData)
     .where(eq(user.id, loggedInUser.id))
     .returning({
       id: user.id,
@@ -194,7 +270,7 @@ const updateUser = asyncHandler(async (req: Request, res: Response) => {
       primaryAddress: user.primaryAddress,
     });
 
-  if (!updatedUser) {
+  if (!updatedUser.length) {
     throw new ApiError(500, "Failed to update user");
   }
 
@@ -316,12 +392,130 @@ const verifyUser = asyncHandler(async (req: Request, res: Response) => {
       isVerified: user.isVerfied,
     });
 
-  if (!updatedUser.length) {
+  if (!updatedUser.length || !updatedUser[0].isVerified) {
     throw new ApiError(500, "Failed to verify user");
   }
 
   res.status(200).json(
     new ApiResponse(200, "User verified successfully", {
+      user: updatedUser[0],
+    })
+  );
+});
+
+const forgotPassword = asyncHandler(async (req: Request, res: Response) => {
+  const { email, phoneNumber } = req.body;
+
+  if (!email && !phoneNumber) {
+    throw new ApiError(400, "Please provide email or phone number");
+  }
+
+  const existingUser = await db.query.user.findFirst({
+    where: or(eq(user.email, email), eq(user.phoneNumber, phoneNumber)),
+  });
+
+  if (!existingUser) {
+    throw new ApiError(404, "User not found with given email or phone");
+  }
+
+  const otpToken = await sendOTP(String(existingUser.phoneNumber));
+
+  if (!otpToken) {
+    throw new ApiError(300, "Error Sending OTP token. Please try again");
+  }
+
+  const tokenExpiry = new Date(Date.now() + 10 * 60 * 1000);
+
+  const updatedUser = await db
+    .update(user)
+    .set({
+      resetPasswordToken: otpToken,
+      resetPasswordTokenExpiry: tokenExpiry.toISOString(),
+    })
+    .where(eq(user.id, existingUser.id));
+
+  if (!updatedUser) {
+    throw new ApiError(400, "Error setting verfication token");
+  }
+
+  res.status(200).json(
+    new ApiResponse(200, "OTP sent to user for verification", {
+      userId: existingUser.id,
+      otpToken,
+    })
+  );
+});
+
+const resetPassword = asyncHandler(async (req: Request, res: Response) => {
+  const { otpToken, userId, password } = req.body;
+
+  if (!otpToken) {
+    throw new ApiError(400, "Please provide OTP");
+  }
+
+  if (!userId) {
+    throw new ApiError(400, "Please provide user ID");
+  }
+
+  if (!password) {
+    throw new ApiError(400, "Please provide new password");
+  }
+
+  const existingUser = await db.query.user.findFirst({
+    where: eq(user.id, userId),
+  });
+
+  if (!existingUser) {
+    throw new ApiError(400, "User not found");
+  }
+
+  if (
+    !existingUser.resetPasswordToken ||
+    !existingUser.resetPasswordTokenExpiry
+  ) {
+    throw new ApiError(400, "Reset Password token not found");
+  }
+
+  if (!existingUser.resetPasswordTokenExpiry) {
+    throw new ApiError(
+      400,
+      "Verification token expiry not registered. Please verify again."
+    );
+  }
+
+  const tokenExpiry = new Date(existingUser.resetPasswordTokenExpiry);
+  const currentTime = new Date(Date.now()).toISOString();
+
+  if (new Date(currentTime) < tokenExpiry) {
+    throw new ApiError(400, "Verification token expired");
+  }
+
+  if (otpToken !== existingUser.resetPasswordToken) {
+    throw new ApiError(400, "Invalid OTP");
+  }
+
+  const hashedPassword = await bcrypt.hash(password, 10);
+
+  const updatedUser = await db
+    .update(user)
+    .set({
+      password: hashedPassword,
+      resetPasswordToken: null,
+      resetPasswordTokenExpiry: null,
+    })
+    .returning({
+      id: user.id,
+      name: user.name,
+      phoneNumber: user.phoneNumber,
+      email: user.email,
+    });
+
+  if (!updatedUser.length) {
+    throw new ApiError(500, "Failed to update user");
+  }
+
+  res.status(200).json(
+    new ApiResponse(200, "Password reset successfully", {
       user: updatedUser[0],
     })
   );
@@ -335,4 +529,6 @@ export {
   getUser,
   verifyUser,
   getProfile,
+  forgotPassword,
+  resetPassword,
 };
