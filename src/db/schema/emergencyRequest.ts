@@ -28,9 +28,6 @@ export const emergencyRequest = pgTable("emergency_request", {
   userId: uuid("user_id")
     .references(() => user.id)
     .notNull(),
-  serviceProviderId: uuid("service_provider_id")
-    .references(() => serviceProvider.id)
-    .notNull(),
   serviceType: serviceTypeEnum("service_type").notNull(),
   requestStatus: requestStatusEnum("request_status")
     .notNull()
@@ -48,11 +45,6 @@ export const emergencyRequest = pgTable("emergency_request", {
 export const emergencyRequestRelations = relations(
   emergencyRequest,
   ({ one }) => ({
-    serviceProvider: one(serviceProvider, {
-      fields: [emergencyRequest.serviceProviderId],
-      references: [serviceProvider.id],
-    }),
-
     userId: one(user, {
       fields: [emergencyRequest.userId],
       references: [user.id],
@@ -61,4 +53,15 @@ export const emergencyRequestRelations = relations(
 );
 
 export const emergencyRequestSchema = createSelectSchema(emergencyRequest);
+
+export const newEmergencyRequestSchema = createInsertSchema(
+  emergencyRequest
+).pick({
+  userId: true,
+  serviceType: true,
+  description: true,
+  location: true,
+});
+
 export type TEmergencyRequest = z.infer<typeof emergencyRequestSchema>;
+export type TNewEmergencyRequest = z.infer<typeof newEmergencyRequestSchema>;

@@ -17,6 +17,7 @@ export const statusUpdateEnum = pgEnum("status_update", [
   "accepted",
   "arrived",
   "on_route",
+  "rejected"
 ]);
 
 export const emergencyResponse = pgTable("emergency_response", {
@@ -24,11 +25,13 @@ export const emergencyResponse = pgTable("emergency_response", {
   emergencyRequestId: uuid("emergency_request_id").references(
     () => emergencyRequest.id
   ),
-  responseTime: timestamp("response_time").defaultNow(),
   serviceProviderId: uuid("service_provider_id").references(
     () => serviceProvider.id
   ),
+
   statusUpdate: statusUpdateEnum("status_update").default("accepted"),
+  assignedAt: timestamp("assigned_at").defaultNow(),
+  respondedAt: timestamp("responded_at"),
   updateDescription: varchar({ length: 255 }),
 
   createdAt: timestamp("created_at", { mode: "string" }).notNull().defaultNow(),

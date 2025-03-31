@@ -11,7 +11,6 @@ import {
   boolean,
 } from "drizzle-orm/pg-core";
 import { serviceTypeEnum } from "./enums";
-import { emergencyRequest } from "./emergencyRequest";
 import { emergencyResponse } from "./emergencyResponse";
 import { feedback } from "./feedback";
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
@@ -82,6 +81,7 @@ export const newServiceProviderSchema = serviceProviderSchema.pick({
   serviceType: true,
   organizationId: true,
 });
+
 
 export const loginServiceProviderSchema = createInsertSchema(
   serviceProvider
