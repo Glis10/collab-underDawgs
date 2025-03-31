@@ -7,7 +7,7 @@ import db from "@/db";
 import { eq } from "drizzle-orm";
 import { TNotification } from "@/db/schema/notification";
 
-type SocketUser = Socket & { user: Partial<TUser> };
+type SocketUser = Socket & { user?: Partial<TUser> };
 const CONNECTIONS = new Array<SocketUser>();
 
 const handleSocketConnection = (socket: SocketUser) => {
