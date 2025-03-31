@@ -2,7 +2,7 @@ import { envConfig } from "@/config/env.config";
 import type { TServiceProvider, TUser } from "@/db/schema";
 import jwt, { type JwtPayload } from "jsonwebtoken";
 
-interface IJWTToken {
+export interface IJWTToken extends JwtPayload {
   id: string;
   name: string;
   email: string;
