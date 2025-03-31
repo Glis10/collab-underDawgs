@@ -6,4 +6,5 @@ export const envConfig = {
   otp_secret: String(process.env.OTP_SECRET),
   twilio_account_sid: String(process.env.TWILIO_ACCOUNT_SID),
   twilio_auth_token: String(process.env.TWILIO_AUTH_TOKEN),
+  galli_maps_token: String(process.env.GALLI_MAPS_TOKEN),
 };
