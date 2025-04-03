@@ -39,8 +39,10 @@ const createEmergencyResponse = asyncHandler(
         id: emergencyResponse.id,
         emergencyRequestId: emergencyResponse.emergencyRequestId,
         serviceProviderId: emergencyResponse.serviceProviderId,
-        responseTime: emergencyResponse.responseTime,
+
         statusUpdate: emergencyResponse.statusUpdate,
+        assignedAt: emergencyResponse.assignedAt,
+        respondedAt: emergencyResponse.respondedAt,
         updateDescription: emergencyResponse.updateDescription,
       });
 
@@ -110,7 +112,9 @@ const updateEmergencyResponse = asyncHandler(
         id: emergencyResponse.id,
         emergencyRequestId: emergencyResponse.emergencyRequestId,
         serviceProviderId: emergencyResponse.serviceProviderId,
-        responseTime: emergencyResponse.responseTime,
+
+        assignedAt: emergencyResponse.assignedAt,
+        respondedAt: emergencyResponse.respondedAt,
         statusUpdate: emergencyResponse.statusUpdate,
         updateDescription: emergencyResponse.updateDescription,
       });
@@ -155,7 +159,10 @@ const deleteEmergencyResponse = asyncHandler(
         id: emergencyResponse.id,
         emergencyRequestId: emergencyResponse.emergencyRequestId,
         serviceProviderId: emergencyResponse.serviceProviderId,
-        responseTime: emergencyResponse.responseTime,
+
+        assignedAt: emergencyResponse.assignedAt,
+        respondedAt: emergencyResponse.respondedAt,
+
         statusUpdate: emergencyResponse.statusUpdate,
         updateDescription: emergencyResponse.updateDescription,
       });
