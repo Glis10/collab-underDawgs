@@ -1,10 +1,11 @@
-import { asyncHandler } from "@/utils/asyncHandler";
+import { asyncHandler } from "@/utils/api/asyncHandler";
 import { Request, Response } from "express";
 import db from "@/db";
-import ApiError from "@/utils/ApiError";
+import ApiError from "@/utils/api/ApiError";
 import { and, eq } from "drizzle-orm";
 import { emergencyRequest, newEmergencyRequestSchema } from "@/db/schema";
-import ApiResponse from "@/utils/ApiResponse";
+import ApiResponse from "@/utils/api/ApiResponse";
+import { getBestServiceProvider } from "@/utils/maps";
 
 const createEmergencyRequest = asyncHandler(
   async (req: Request, res: Response) => {
@@ -31,22 +32,58 @@ const createEmergencyRequest = asyncHandler(
       .values(parsedValues.data)
       .returning({
         id: emergencyRequest.id,
-        patientId: emergencyRequest.userId,
+        userId: emergencyRequest.userId,
         emergencyType: emergencyRequest.serviceType,
         emergencyDescription: emergencyRequest.description,
         emergencyLocation: emergencyRequest.location,
         status: emergencyRequest.requestStatus,
+        currentLocation: emergencyRequest.location,
       });
 
     if (!newEmergencyRequest) {
       throw new ApiError(500, "Error creating emergency request");
     }
 
-    res
-      .status(201)
-      .json(
-        new ApiResponse(201, "Emergency request created", newEmergencyRequest)
-      );
+    if (!emergencyLocation) {
+      throw new ApiError(400, "Emergency location is required");
+    }
+
+    if (!emergencyLocation.latitude || !emergencyLocation.longitude) {
+      throw new ApiError(400, "Emergency location coordinates are required");
+    }
+
+    if (
+      isNaN(parseFloat(emergencyLocation.latitude)) ||
+      isNaN(parseFloat(emergencyLocation.longitude))
+    ) {
+      throw new ApiError(400, "Invalid emergency location coordinates");
+    }
+
+    const emergencyRequestLocation = {
+      latitude: parseFloat(emergencyLocation.latitude),
+      longitude: parseFloat(emergencyLocation.longitude),
+    };
+
+    const bestServiceProvider = await getBestServiceProvider(
+      emergencyRequestLocation
+    );
+
+    if (!bestServiceProvider || !bestServiceProvider.id) {
+      const emergencyRequestId = newEmergencyRequest[0].id;
+      await db
+        .delete(emergencyRequest)
+        .where(eq(emergencyRequest.id, emergencyRequestId));
+      throw new ApiError(404, "No available service provider found");
+    }
+
+    const serviceProviderId = bestServiceProvider.id;
+
+    res.status(201).json(
+      new ApiResponse(201, "Emergency request created", {
+        emergencyRequest: newEmergencyRequest,
+        serviceProviderId,
+      })
+    );
   }
 );
 
