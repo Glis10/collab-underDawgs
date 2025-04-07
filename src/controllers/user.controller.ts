@@ -12,6 +12,7 @@ import { generateJWT, verifyJWT } from "@/utils/jwtTokens";
 import { generateOtpToken } from "@/utils/otpTokens";
 import { getOtpMessage } from "@/constants";
 import { adminEmails } from "@/config";
+import { capitalizeFirstLetter } from "@/utils";
 
 const sendOTP = async (phoneNumber: string): Promise<string | null> => {
   const otpToken = generateOtpToken(phoneNumber);
@@ -186,10 +187,16 @@ const loginUser = asyncHandler(async (req: Request, res: Response) => {
     .status(200)
     .cookie("token", token)
     .json(
-      new ApiResponse(200, "User logged in successfully", {
-        user: loggedInUser,
-        token,
-      })
+      new ApiResponse(
+        200,
+        `${capitalizeFirstLetter(
+          loggedInUser.role?.toString() ?? "user"
+        )} logged in successfully`,
+        {
+          user: loggedInUser,
+          token,
+        }
+      )
     );
 });
 
