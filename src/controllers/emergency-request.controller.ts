@@ -53,17 +53,9 @@ const createEmergencyRequest = asyncHandler(
 const getEmergencyRequest = asyncHandler(
   async (req: Request, res: Response) => {
     const { id } = req.params;
-    const user = req.user;
-
-    if (!user.id) {
-      throw new ApiError(400, "User ID is required");
-    }
 
     const emergencyRequestData = await db.query.emergencyRequest.findFirst({
-      where: and(
-        eq(emergencyRequest.id, id),
-        eq(emergencyRequest.userId, user.id)
-      ),
+      where: and(eq(emergencyRequest.id, id)),
     });
 
     return res
@@ -94,13 +86,30 @@ const getUsersEmergencyRequests = asyncHandler(
   }
 );
 
-const updateEmergencyRequestStatus = asyncHandler(
+const updateEmergencyRequest = asyncHandler(
   async (req: Request, res: Response) => {
     const { id } = req.params;
     const { status } = req.body;
 
     if (!id) {
       throw new ApiError(400, "Emergency request ID is required");
+    }
+
+    const updateData = req.body;
+
+    if (Object.keys(updateData).length === 0) {
+      throw new ApiError(400, "No data to update");
+    }
+
+    const invalidKeys = Object.keys(updateData).filter(
+      (key) => !Object.keys(emergencyRequest).includes(key)
+    );
+
+    if (invalidKeys.length > 0) {
+      throw new ApiError(
+        400,
+        `Invalid data to update. Invalid keys: ${invalidKeys}`
+      );
     }
 
     const existingEmergencyRequest = await db.query.emergencyRequest.findFirst({
@@ -113,17 +122,15 @@ const updateEmergencyRequestStatus = asyncHandler(
 
     const updatedEmergencyRequest = await db
       .update(emergencyRequest)
-      .set({
-        requestStatus: status,
-      })
+      .set(updateData)
       .where(eq(emergencyRequest.id, id))
       .returning({
         id: emergencyRequest.id,
-        patientId: emergencyRequest.userId,
+        userId: emergencyRequest.userId,
         emergencyType: emergencyRequest.serviceType,
         emergencyDescription: emergencyRequest.description,
         emergencyLocation: emergencyRequest.location,
-        status: emergencyRequest.requestStatus,
+        requestStatus: emergencyRequest.requestStatus,
       });
 
     if (!updatedEmergencyRequest) {
@@ -145,6 +152,15 @@ const updateEmergencyRequestStatus = asyncHandler(
 const deleteEmergencyRequest = asyncHandler(
   async (req: Request, res: Response) => {
     const { id } = req.params;
+    const loggedInUser = req.user;
+
+    if (!loggedInUser || !loggedInUser.id) {
+      throw new ApiError(400, "User ID is required");
+    }
+
+    if (!loggedInUser.role) {
+      throw new ApiError(400, "User role is required");
+    }
 
     if (!id) {
       throw new ApiError(400, "Emergency request ID is required");
@@ -190,6 +206,6 @@ export {
   createEmergencyRequest,
   getEmergencyRequest,
   getUsersEmergencyRequests,
-  updateEmergencyRequestStatus,
-  deleteEmergencyRequest, 
-}
+  updateEmergencyRequest,
+  deleteEmergencyRequest,
+};
