@@ -1,4 +1,5 @@
 import {
+  changePassword,
   forgotPassword,
   getProfile,
   getUser,
@@ -28,6 +29,7 @@ userRouter
 userRouter.route("/verify").post(verifyUser);
 userRouter.route("/forgot-password").post(forgotPassword);
 userRouter.route("/reset-password").post(resetPassword);
+userRouter.route("/change-password").post(validateUser, changePassword);
 
 userRouter.route("/profile").get(validateUser, getProfile);
 userRouter.route("/:userId").get(getUser);

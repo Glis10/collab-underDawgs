@@ -528,6 +528,79 @@ const resetPassword = asyncHandler(async (req: Request, res: Response) => {
   );
 });
 
+const changePassword = asyncHandler(async (req: Request, res: Response) => {
+  const loggedInUser = req.user;
+
+  if (!loggedInUser || !loggedInUser.id) {
+    throw new ApiError(401, "Unauthorized");
+  }
+
+  const { oldPassword, newPassword } = req.body;
+
+  if (!oldPassword || !newPassword) {
+    throw new ApiError(400, "Please provide old and new password");
+  }
+
+  if (!loggedInUser || !loggedInUser.id) {
+    throw new ApiError(401, "Unauthorized");
+  }
+
+  const existingUser = await db.query.user.findFirst({
+    where: eq(user.id, loggedInUser.id),
+    columns: {
+      id: true,
+      name: true,
+      phoneNumber: true,
+      email: true,
+      age: true,
+      primaryAddress: true,
+      password: true,
+      isVerfied: true,
+    },
+  });
+
+  if (!existingUser) {
+    throw new ApiError(401, "Unauthorized");
+  }
+
+  const isPasswordValid = await bcrypt.compare(
+    oldPassword,
+    existingUser.password
+  );
+
+  if (!isPasswordValid) {
+    throw new ApiError(400, "Invalid credentials");
+  }
+
+  const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+  const updatedUser = await db
+    .update(user)
+    .set({
+      password: hashedPassword,
+    })
+    .where(eq(user.id, loggedInUser.id))
+    .returning({
+      id: user.id,
+      name: user.name,
+      phoneNumber: user.phoneNumber,
+      email: user.email,
+      age: user.age,
+      primaryAddress: user.primaryAddress,
+      isVerfied: user.isVerfied,
+    });
+
+  if (!updatedUser.length) {
+    throw new ApiError(500, "Failed to update user");
+  }
+
+  res.status(200).json(
+    new ApiResponse(200, "Password updated successfully", {
+      user: updatedUser[0],
+    })
+  );
+});
+
 export {
   registerUser,
   loginUser,
@@ -538,4 +611,5 @@ export {
   getProfile,
   forgotPassword,
   resetPassword,
+  changePassword,
 };
