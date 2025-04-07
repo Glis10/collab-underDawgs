@@ -1,8 +1,8 @@
 import db from "@/db";
 import { newOrganizationSchema, organization } from "@/db/schema";
-import ApiError from "@/utils/ApiError";
-import ApiResponse from "@/utils/ApiResponse";
-import { asyncHandler } from "@/utils/asyncHandler";
+import ApiError from "@/utils/api/ApiError";
+import ApiResponse from "@/utils/api/ApiResponse";
+import { asyncHandler } from "@/utils/api/asyncHandler";
 import { and, eq } from "drizzle-orm";
 import { Request, Response } from "express";
 

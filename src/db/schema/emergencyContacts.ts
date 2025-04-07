@@ -10,7 +10,7 @@ import { user } from "./user";
 import { createSelectSchema } from "drizzle-zod";
 import { z } from "zod";
 
-export const emergencyContact = pgTable("emmergency_contact", {
+export const emergencyContact = pgTable("emergency_contact", {
   id: uuid("id").defaultRandom().primaryKey(),
   name: varchar("name", { length: 50 }).notNull(),
   isCommanContact: boolean("is_comman_contact").notNull().default(false),

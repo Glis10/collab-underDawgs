@@ -1,10 +1,10 @@
-import { asyncHandler } from "@/utils/asyncHandler";
+import { asyncHandler } from "@/utils/api/asyncHandler";
 import { Request, Response } from "express";
 import db from "@/db";
-import ApiError from "@/utils/ApiError";
+import ApiError from "@/utils/api/ApiError";
 import { and, eq } from "drizzle-orm";
 import { emergencyResponse } from "@/db/schema";
-import ApiResponse from "@/utils/ApiResponse";
+import ApiResponse from "@/utils/api/ApiResponse";
 
 const createEmergencyResponse = asyncHandler(
   async (req: Request, res: Response) => {

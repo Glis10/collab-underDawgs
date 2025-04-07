@@ -32,10 +32,15 @@ export const user = pgTable("user", {
   verificationToken: varchar("verification_token", { length: 255 }),
   tokenExpiry: timestamp("token_expiry", { mode: "string" }),
   socketId: varchar("socket_id", { length: 255 }),
-  currentLocation: json("current_location").default({
-    latitude: "",
-    longitude: "",
-  }),
+  currentLocation: json("current_location")
+    .$type<{
+      latitude: string;
+      longitude: string;
+    }>()
+    .default({
+      latitude: "",
+      longitude: "",
+    }),
 
   resetPasswordToken: varchar("reset_password_token", { length: 255 }),
   resetPasswordTokenExpiry: timestamp("reset_password_token_expiry", {

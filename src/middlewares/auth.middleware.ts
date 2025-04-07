@@ -1,7 +1,7 @@
 import { TUser, TUserRole } from "@/db/schema";
-import ApiError from "@/utils/ApiError";
-import { asyncHandler } from "@/utils/asyncHandler";
-import { verifyJWT } from "@/utils/jwtTokens";
+import ApiError from "@/utils/api/ApiError";
+import { asyncHandler } from "@/utils/api/asyncHandler";
+import { verifyJWT } from "@/utils/tokens/jwtTokens";
 import type { NextFunction, Request, Response } from "express";
 
 const verifyAndDecodeToken = (token: string) => {

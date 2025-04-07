@@ -2,7 +2,7 @@ import { TUser, user } from "@/db/schema";
 import { Socket } from "socket.io";
 import jwt from "jsonwebtoken";
 import { envConfig } from "@/config/env.config";
-import { verifyJWT } from "@/utils/jwtTokens";
+import { verifyJWT } from "@/utils/tokens/jwtTokens";
 import db from "@/db";
 import { eq } from "drizzle-orm";
 import { TNotification } from "@/db/schema/notification";
