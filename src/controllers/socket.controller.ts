@@ -1,7 +1,5 @@
-import { TUser, user } from "@/db/schema";
+import { serviceProvider, TUser, user } from "@/db/schema";
 import { Socket } from "socket.io";
-import jwt from "jsonwebtoken";
-import { envConfig } from "@/config/env.config";
 import { verifyJWT } from "@/utils/tokens/jwtTokens";
 import db from "@/db";
 import { eq } from "drizzle-orm";
@@ -55,6 +53,26 @@ const handleSocketConnection = (socket: SocketUser) => {
       socket.emit("error", "Error authenticating user");
       socket.disconnect();
     }
+  });
+
+  socket.on(
+    "joinEmergencyRoom",
+    ({ emergencyRequestId, userId, providerId }) => {
+      const room = `emergency_${emergencyRequestId}`;
+      socket.join(room);
+      console.log(`${socket.id} joined ${room}`);
+    }
+  );
+
+  socket.on("locationUpdate", async ({ providerId, latitude, longitude }) => {
+    await db
+      .update(serviceProvider)
+      .set({ currentLocation: { latitude, longitude } })
+      .where(eq(serviceProvider.id, providerId));
+
+    socket
+      .to(`emergency_${providerId}`)
+      .emit("providerLocationUpdate", { latitude, longitude });
   });
 };
 
