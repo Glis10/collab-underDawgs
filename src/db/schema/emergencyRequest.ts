@@ -36,7 +36,12 @@ export const emergencyRequest = pgTable("emergency_request", {
   dispatchTime: timestamp("dispatch_time"),
   arrivalTime: timestamp("arrival_time"),
   description: varchar({ length: 255 }),
-  location: json("location").notNull(),
+  location: json("location")
+    .$type<{
+      latitude: string;
+      longitude: string;
+    }>()
+    .notNull(),
 
   createdAt: timestamp("created_at", { mode: "string" }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { mode: "string" }).notNull().defaultNow(),

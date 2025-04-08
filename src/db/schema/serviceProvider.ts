@@ -37,10 +37,14 @@ export const serviceProvider = pgTable("service_provider", {
   organizationId: uuid("organization_id")
     .references(() => organization.id)
     .notNull(),
-  currentLocation: json("current_location").default({
+  currentLocation: json("current_location").$type<{
+    latitude: string;
+    longitude: string;
+  }>().default({
     latitude: "",
     longitude: "",
   }),
+
   serviceStatus: statusTypeEnum("service_status")
     .notNull()
     .default("available"),
@@ -81,7 +85,6 @@ export const newServiceProviderSchema = serviceProviderSchema.pick({
   serviceType: true,
   organizationId: true,
 });
-
 
 export const loginServiceProviderSchema = createInsertSchema(
   serviceProvider

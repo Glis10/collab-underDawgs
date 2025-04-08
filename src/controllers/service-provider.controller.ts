@@ -1,7 +1,7 @@
-import { asyncHandler } from "@/utils/asyncHandler";
+import { asyncHandler } from "@/utils/api/asyncHandler";
 import { Request, Response } from "express";
 import bcrypt from "bcryptjs";
-import ApiError from "@/utils/ApiError";
+import ApiError from "@/utils/api/ApiError";
 import { or, eq, is } from "drizzle-orm";
 import db from "@/db";
 import {
@@ -11,11 +11,11 @@ import {
   TServiceProvider,
   serviceProvider,
 } from "@/db/schema";
-import ApiResponse from "@/utils/ApiResponse";
-import { generateOtpToken } from "@/utils/otpTokens";
+import ApiResponse from "@/utils/api/ApiResponse";
+import { generateOtpToken } from "@/utils/tokens/otpTokens";
 import { getOtpMessage } from "@/constants";
-import twilioClient from "@/utils/twilio";
-import { generateJWT } from "@/utils/jwtTokens";
+import twilioClient from "@/utils/services/twilio";
+import { generateJWT } from "@/utils/tokens/jwtTokens";
 
 // TODO Implement this method at one place only
 const sendOTP = async (phoneNumber: string): Promise<string | null> => {

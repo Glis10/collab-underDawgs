@@ -11,7 +11,7 @@ import { envConfig } from "@/config/env.config";
 import { v1Router } from "@/routes";
 import { handleSocketConnection } from "@/controllers/socket.controller";
 import { corsOptions } from "@/config";
-import ApiResponse from "./utils/ApiResponse";
+import ApiResponse from "./utils/api/ApiResponse";
 
 const app = express();
 const port = envConfig.port;
