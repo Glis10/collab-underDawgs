@@ -9,9 +9,9 @@ import { Server } from "socket.io";
 
 import { envConfig } from "@/config/env.config";
 import { v1Router } from "@/routes";
-import { handleSocketConnection } from "@/controllers/socket.controller";
 import { corsOptions } from "@/config";
 import ApiResponse from "./utils/api/ApiResponse";
+import { initializeSocketIo } from "./socket";
 
 const app = express();
 const port = envConfig.port;
@@ -42,7 +42,7 @@ function startServer() {
     const httpServer = createServer(app);
     const io = new Server(httpServer, { cors: corsOptions });
 
-    io.on("connection", handleSocketConnection);
+    initializeSocketIo(io);
 
     httpServer.listen(port, () => {
       console.log(`Server is listening on: ${port}`);
