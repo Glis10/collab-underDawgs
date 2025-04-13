@@ -10,6 +10,8 @@ import {
 } from "@/db/schema";
 import ApiResponse from "@/utils/api/ApiResponse";
 import { getOptimalRoute } from "@/utils/maps/galli-maps";
+import { emitSocketEvent } from "@/socket";
+import { SocketEventEnums } from "@/constants";
 
 const createEmergencyResponse = asyncHandler(
   async (req: Request, res: Response) => {
@@ -88,6 +90,8 @@ const createEmergencyResponse = asyncHandler(
         emergencyRequestId,
         serviceProviderId,
         assignedAt: new Date(emergencyRequestDetails.createdAt),
+        originLocation: assignedServiceProvider.currentLocation,
+        destinationLocation: emergencyRequestDetails.location,
       })
       .returning({
         id: emergencyResponse.id,
@@ -118,6 +122,16 @@ const createEmergencyResponse = asyncHandler(
         })
         .where(eq(serviceProvider.id, serviceProviderId)),
     ]);
+
+    emitSocketEvent(
+      req,
+      emergencyRequestId,
+      SocketEventEnums.EMERGENCY_RESPONSE_CREATED,
+      {
+        emergencyResponse: newEmergencyResponse,
+        optimalPath,
+      }
+    );
 
     if (!updatedStatus) {
       await db
