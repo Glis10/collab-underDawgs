@@ -43,6 +43,8 @@ const registerUser = asyncHandler(async (req: Request, res: Response) => {
   const { name, phoneNumber, age, email, password, primaryAddress, role } =
     req.body;
 
+  console.log(req.body);
+
   const parsedValues = newUserSchema.safeParse({
     name,
     phoneNumber,
@@ -136,7 +138,7 @@ const loginUser = asyncHandler(async (req: Request, res: Response) => {
       primaryAddress: true,
       role: true,
       password: true,
-      isVerfied: true,
+      isVerified: true,
     },
   });
 
@@ -150,7 +152,7 @@ const loginUser = asyncHandler(async (req: Request, res: Response) => {
     throw new ApiError(400, "Invalid credentials");
   }
 
-  if (!existingUser.isVerfied) {
+  if (!existingUser.isVerified) {
     const otpToken = await sendOTP(String(existingUser.phoneNumber));
 
     if (!otpToken) {
@@ -388,7 +390,7 @@ const verifyUser = asyncHandler(async (req: Request, res: Response) => {
   const updatedUser = await db
     .update(user)
     .set({
-      isVerfied: true,
+      isVerified: true,
       verificationToken: null,
       tokenExpiry: null,
     })
@@ -396,7 +398,7 @@ const verifyUser = asyncHandler(async (req: Request, res: Response) => {
       id: user.id,
       name: user.name,
       phoneNumber: user.phoneNumber,
-      isVerified: user.isVerfied,
+      isVerified: user.isVerified,
     });
 
   if (!updatedUser.length || !updatedUser[0].isVerified) {
@@ -555,7 +557,7 @@ const changePassword = asyncHandler(async (req: Request, res: Response) => {
       age: true,
       primaryAddress: true,
       password: true,
-      isVerfied: true,
+      isVerified: true,
     },
   });
 
@@ -587,7 +589,7 @@ const changePassword = asyncHandler(async (req: Request, res: Response) => {
       email: user.email,
       age: user.age,
       primaryAddress: user.primaryAddress,
-      isVerfied: user.isVerfied,
+      isVerified: user.isVerified,
     });
 
   if (!updatedUser.length) {
