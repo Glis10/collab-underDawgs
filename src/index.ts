@@ -10,8 +10,8 @@ import { Server } from "socket.io";
 import { envConfig } from "@/config/env.config";
 import { v1Router } from "@/routes";
 import { corsOptions } from "@/config";
-import ApiResponse from "./utils/api/ApiResponse";
 import { initializeSocketIo } from "./socket";
+import ApiResponse from "@/utils/api/ApiResponse";
 
 const app = express();
 const port = envConfig.port;
@@ -21,10 +21,6 @@ app.use(cors(corsOptions));
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
-
-app.get("/api/v1/healthcheck", (req: Request, res: Response) => {
-  res.send("Server is up and running");
-});
 
 // V1 API routes
 app.use("/api/v1", v1Router);
@@ -41,6 +37,7 @@ function startServer() {
   try {
     const httpServer = createServer(app);
     const io = new Server(httpServer, { cors: corsOptions });
+    app.set("io", io);
 
     initializeSocketIo(io);
 
