@@ -5,7 +5,6 @@ import ApiError from "@/utils/api/ApiError";
 import { and, eq } from "drizzle-orm";
 import { emergencyRequest, newEmergencyRequestSchema, user } from "@/db/schema";
 import ApiResponse from "@/utils/api/ApiResponse";
-import { getBestServiceProvider } from "@/utils/maps";
 
 const createEmergencyRequest = asyncHandler(
   async (req: Request, res: Response) => {
