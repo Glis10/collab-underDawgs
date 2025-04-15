@@ -3,25 +3,37 @@ import { Request, Response } from "express";
 import db from "@/db";
 import ApiError from "@/utils/api/ApiError";
 import { and, eq } from "drizzle-orm";
-import { emergencyResponse } from "@/db/schema";
+import {
+  emergencyRequest,
+  emergencyResponse,
+  serviceProvider,
+} from "@/db/schema";
 import ApiResponse from "@/utils/api/ApiResponse";
+import { getOptimalRoute } from "@/utils/maps/galli-maps";
+import { emitSocketEvent } from "@/socket";
+import { SocketEventEnums, SocketRoom } from "@/constants";
+import { getBestServiceProvider } from "@/utils/maps";
 
 const createEmergencyResponse = asyncHandler(
   async (req: Request, res: Response) => {
-    const { emergencyRequestId, serviceProviderId } = req.body;
+    const loggedInUser = req.user;
 
-    if (!emergencyRequestId || !serviceProviderId) {
-      throw new ApiError(
-        400,
-        "Emergency ID and Service Provider ID are required"
-      );
+    if (!loggedInUser || !loggedInUser.id) {
+      throw new ApiError(400, "Please login to perform this action");
+    }
+
+    console.log("body", req.body);
+
+    let { emergencyRequestId, destLocation } = req.body;
+
+    if (!emergencyRequestId) {
+      throw new ApiError(400, "Emergency ID are required");
     }
 
     const existingEmergencyResponse =
       await db.query.emergencyResponse.findFirst({
         where: and(
-          eq(emergencyRequestId, emergencyResponse.emergencyRequestId),
-          eq(serviceProviderId, emergencyResponse.serviceProviderId)
+          eq(emergencyRequestId, emergencyResponse.emergencyRequestId)
         ),
       });
 
@@ -29,11 +41,108 @@ const createEmergencyResponse = asyncHandler(
       throw new ApiError(400, "Emergency response already exists");
     }
 
+    if (!destLocation) {
+      console.error(
+        "No destLocation passed. Assigning user's default location"
+      );
+      destLocation = loggedInUser.currentLocation;
+    }
+
+    if (
+      isNaN(parseFloat(destLocation.latitude)) ||
+      isNaN(parseFloat(destLocation.longitude))
+    ) {
+      console.error("Invalid emergency location coordinates");
+      throw new ApiError(400, "Invalid emergency location coordinates");
+    }
+
+    const emergencyRequestLocation = {
+      latitude: parseFloat(destLocation.latitude),
+      longitude: parseFloat(destLocation.longitude),
+    };
+
+    const bestServiceProvider = await getBestServiceProvider(
+      emergencyRequestLocation
+    );
+
+    if (!bestServiceProvider || !bestServiceProvider.id) {
+      await db
+        .delete(emergencyRequest)
+        .where(eq(emergencyRequest.id, emergencyRequestId));
+
+      console.error("No available service provider found");
+      throw new ApiError(404, "No available service provider found");
+    }
+
+    const serviceProviderId = bestServiceProvider.id;
+
+    const assignedServiceProvider = await db.query.serviceProvider.findFirst({
+      where: eq(serviceProvider.id, serviceProviderId),
+    });
+
+    const emergencyRequestDetails = await db.query.emergencyRequest.findFirst({
+      where: eq(emergencyRequest.id, emergencyRequestId),
+    });
+
+    if (!assignedServiceProvider || !emergencyRequestDetails) {
+      throw new ApiError(
+        404,
+        "Service provider or emergency request not found"
+      );
+    }
+
+    if (
+      !assignedServiceProvider.currentLocation ||
+      !emergencyRequestDetails.location
+    ) {
+      throw new ApiError(
+        404,
+        "Service provider or emergency request location not found"
+      );
+    }
+
+    if (
+      !assignedServiceProvider.currentLocation.latitude ||
+      !assignedServiceProvider.currentLocation.longitude ||
+      !emergencyRequestDetails.location.latitude ||
+      !emergencyRequestDetails.location.longitude
+    ) {
+      throw new ApiError(
+        404,
+        "Service provider or emergency request location coordinates not found"
+      );
+    }
+
+    let optimalPath;
+
+    if (destLocation) {
+      optimalPath = await getOptimalRoute({
+        srcLat: assignedServiceProvider.currentLocation.latitude,
+        srcLng: assignedServiceProvider.currentLocation.longitude,
+        dstLat: destLocation.latitude,
+        dstLng: destLocation.longitude,
+      });
+    } else {
+      optimalPath = await getOptimalRoute({
+        srcLat: assignedServiceProvider.currentLocation.latitude,
+        srcLng: assignedServiceProvider.currentLocation.longitude,
+        dstLat: emergencyRequestDetails.location.latitude,
+        dstLng: emergencyRequestDetails.location.longitude,
+      });
+    }
+
+    if (!optimalPath) {
+      throw new ApiError(400, "Error getting optimal path");
+    }
+
     const newEmergencyResponse = await db
       .insert(emergencyResponse)
       .values({
         emergencyRequestId,
         serviceProviderId,
+        assignedAt: new Date(emergencyRequestDetails.createdAt),
+        originLocation: assignedServiceProvider.currentLocation,
+        destinationLocation: emergencyRequestDetails.location,
       })
       .returning({
         id: emergencyResponse.id,
@@ -50,11 +159,58 @@ const createEmergencyResponse = asyncHandler(
       throw new ApiError(500, "Error creating emergency response");
     }
 
-    res
-      .status(201)
-      .json(
-        new ApiResponse(201, "Emergency response created", newEmergencyResponse)
+    const updatedStatus = Promise.all([
+      db
+        .update(emergencyRequest)
+        .set({
+          requestStatus: "assigned",
+        })
+        .where(eq(emergencyRequest.id, emergencyRequestId)),
+      db
+        .update(serviceProvider)
+        .set({
+          serviceStatus: "assigned",
+        })
+        .where(eq(serviceProvider.id, serviceProviderId)),
+    ]);
+
+    emitSocketEvent(
+      req,
+      SocketRoom.USER(loggedInUser.id),
+      SocketEventEnums.EMERGENCY_RESPONSE_CREATED,
+      {
+        emergencyResponse: newEmergencyResponse,
+        optimalPath,
+      }
+    );
+
+    emitSocketEvent(
+      req,
+      SocketRoom.PROVIDER(assignedServiceProvider.id),
+      SocketEventEnums.EMERGENCY_RESPONSE_CREATED,
+      {
+        emergencyResponse: newEmergencyResponse,
+        optimalPath,
+      }
+    );
+
+    if (!updatedStatus) {
+      await db
+        .delete(emergencyResponse)
+        .where(eq(emergencyResponse.id, newEmergencyResponse[0].id));
+
+      throw new ApiError(
+        500,
+        "Error updating emergency request and service provider status"
       );
+    }
+
+    res.status(201).json(
+      new ApiResponse(201, "Emergency response created", {
+        emergencyResponse: newEmergencyResponse,
+        optimalPath,
+      })
+    );
   }
 );
 

@@ -6,6 +6,7 @@ import {
   varchar,
   timestamp,
   uuid,
+  json,
 } from "drizzle-orm/pg-core";
 import { emergencyRequest } from "./emergencyRequest";
 import { serviceProvider } from "./serviceProvider";
@@ -17,7 +18,7 @@ export const statusUpdateEnum = pgEnum("status_update", [
   "accepted",
   "arrived",
   "on_route",
-  "rejected"
+  "rejected",
 ]);
 
 export const emergencyResponse = pgTable("emergency_response", {
@@ -30,8 +31,23 @@ export const emergencyResponse = pgTable("emergency_response", {
   ),
 
   statusUpdate: statusUpdateEnum("status_update").default("accepted"),
-  assignedAt: timestamp("assigned_at").defaultNow(),
-  respondedAt: timestamp("responded_at"),
+
+  originLocation: json("location")
+    .$type<{
+      latitude: string;
+      longitude: string;
+    }>()
+    .notNull(),
+
+  destinationLocation: json("location")
+    .$type<{
+      latitude: string;
+      longitude: string;
+    }>()
+    .notNull(),
+
+  assignedAt: timestamp("assigned_at"),
+  respondedAt: timestamp("responded_at").defaultNow(),
   updateDescription: varchar({ length: 255 }),
 
   createdAt: timestamp("created_at", { mode: "string" }).notNull().defaultNow(),

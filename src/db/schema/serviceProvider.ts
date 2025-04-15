@@ -32,25 +32,26 @@ export const serviceProvider = pgTable("service_provider", {
   primaryAddress: varchar("primary_address", { length: 255 }).notNull(),
   password: varchar("password", { length: 255 }).notNull(),
   serviceType: serviceTypeEnum("service_type").notNull(),
-  isVerfied: boolean("is_verified").default(false),
+  isVerified: boolean("is_verified").default(false),
   profilePicture: varchar("profile_picture", { length: 255 }),
   organizationId: uuid("organization_id")
     .references(() => organization.id)
     .notNull(),
-  currentLocation: json("current_location").$type<{
-    latitude: string;
-    longitude: string;
-  }>().default({
-    latitude: "",
-    longitude: "",
-  }),
+  currentLocation: json("current_location")
+    .$type<{
+      latitude: string;
+      longitude: string;
+    }>()
+    .default({
+      latitude: "",
+      longitude: "",
+    }),
 
   serviceStatus: statusTypeEnum("service_status")
     .notNull()
     .default("available"),
   verificationToken: varchar("verification_token", { length: 255 }),
   tokenExpiry: timestamp("token_expiry", { mode: "string" }),
-  socketId: varchar("socket_id", { length: 255 }),
 
   resetPasswordToken: varchar("reset_password_token", { length: 255 }),
   resetPasswordTokenExpiry: timestamp("reset_password_token_expiry", {

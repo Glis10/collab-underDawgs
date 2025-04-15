@@ -48,6 +48,7 @@ const registerServiceProvider = asyncHandler(
     const parsedValues = newServiceProviderSchema.safeParse(req.body);
 
     if (!parsedValues.success) {
+      console.error("Parsing Error: ", parsedValues.error.errors);
       const validationError = new ApiError(
         400,
         "Error validating data",
@@ -128,6 +129,7 @@ const loginServiceProvider = asyncHandler(
     const parsedValues = loginServiceProviderSchema.safeParse(req.body);
 
     if (!parsedValues.success) {
+      console.error("Parsing Error: ", parsedValues.error.errors);
       const validationError = new ApiError(
         400,
         "Error validating data",
@@ -153,7 +155,7 @@ const loginServiceProvider = asyncHandler(
         phoneNumber: true,
         email: true,
         password: true,
-        isVerfied: true,
+        isVerified: true,
       },
     });
 
@@ -173,7 +175,7 @@ const loginServiceProvider = asyncHandler(
       throw new ApiError(400, "Invalid Credentials Provided");
     }
 
-    if (existingServiceProvider && !existingServiceProvider.isVerfied) {
+    if (existingServiceProvider && !existingServiceProvider.isVerified) {
       const otpToken = await sendOTP(
         String(existingServiceProvider.phoneNumber)
       );
@@ -307,7 +309,7 @@ const verifyServiceProvider = asyncHandler(
     const updatedServiceProvider = await db
       .update(serviceProvider)
       .set({
-        isVerfied: true,
+        isVerified: true,
         verificationToken: null,
         tokenExpiry: null,
       })
@@ -315,7 +317,7 @@ const verifyServiceProvider = asyncHandler(
         id: serviceProvider.id,
         name: serviceProvider.name,
         phoneNumber: serviceProvider.phoneNumber,
-        isVerified: serviceProvider.isVerfied,
+        isVerified: serviceProvider.isVerified,
       });
 
     if (!updatedServiceProvider.length) {

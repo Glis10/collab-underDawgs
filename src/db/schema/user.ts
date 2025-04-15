@@ -14,7 +14,6 @@ import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 import { z } from "zod";
 import { emergencyRequest } from "./emergencyRequest";
 import { feedback } from "./feedback";
-import { locationTracking } from "./locationTracking";
 
 export const userRolesEnum = pgEnum("role", ["admin", "user"]);
 
@@ -26,12 +25,11 @@ export const user = pgTable("user", {
   email: varchar({ length: 255 }).notNull().unique(),
   primaryAddress: varchar("primary_address", { length: 255 }).notNull(),
   password: varchar({ length: 255 }).notNull(),
-  isVerfied: boolean("is_verified").default(false),
+  isVerified: boolean("is_verified").default(false),
   role: userRolesEnum().default("user"),
   profilePicture: varchar("profile_picture", { length: 255 }),
   verificationToken: varchar("verification_token", { length: 255 }),
   tokenExpiry: timestamp("token_expiry", { mode: "string" }),
-  socketId: varchar("socket_id", { length: 255 }),
   currentLocation: json("current_location")
     .$type<{
       latitude: string;
@@ -54,7 +52,6 @@ export const user = pgTable("user", {
 export const userRelations = relations(user, ({ many }) => ({
   emergencyRequest: many(emergencyRequest),
   feedback: many(feedback),
-  locationTracking: many(locationTracking),
 }));
 
 export const usersSchema = createSelectSchema(user);
