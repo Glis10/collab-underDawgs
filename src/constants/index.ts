@@ -15,5 +15,18 @@ export enum SocketEventEnums {
   UPDATE_LOCATION = "updateLocation",
   SEND_LOCATION = "sendLocation",
 
+  PROVIDER_FOUND = "providerFound",
+  NEED_LOCATION = "needLocation",
+
   SOCKET_ERROR = "socketError",
 }
+
+export const SocketRoom = {
+  USER: (id: string) => `user:${id}`,
+  PROVIDER: (id: string) => `provider:${id}`,
+  EMERGENCY: (id: string) => `emergency:${id}`,
+};
+
+export type SocketRoomType = ReturnType<
+  (typeof SocketRoom)[keyof typeof SocketRoom]
+>;

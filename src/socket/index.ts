@@ -1,20 +1,22 @@
-import { serviceProvider, TUser, user } from "@/db/schema";
-import cookie from "cookie";
+import { serviceProvider, TServiceProvider, TUser, user } from "@/db/schema";
+import { parse } from "cookie";
 import { Server, Socket } from "socket.io";
 import { verifyJWT } from "@/utils/tokens/jwtTokens";
 import db from "@/db";
 import { eq } from "drizzle-orm";
-import { SocketEventEnums } from "@/constants";
+import { SocketEventEnums, SocketRoom, SocketRoomType } from "@/constants";
 import ApiError from "@/utils/api/ApiError";
 import type { Request } from "express";
 
-type SocketUser = Socket & { user?: Partial<TUser> };
+type SocketUser = Socket & {
+  user?: Partial<TUser | TServiceProvider>;
+};
 
 const mountJoinRoomEvent = (socket: SocketUser) => {
   socket.on(
     SocketEventEnums.JOIN_EMERGENCY_ROOM,
     ({ emergencyResponseId, userId, providerId }) => {
-      const room = `emergency:${emergencyResponseId}`;
+      const room = SocketRoom.EMERGENCY(emergencyResponseId);
       socket.join(room);
       console.log(
         `[SOCKET] ${socket.id} joined room emergency:${emergencyResponseId}`
@@ -26,54 +28,61 @@ const mountJoinRoomEvent = (socket: SocketUser) => {
 const mountSendLocationEvent = (socket: SocketUser) => {
   socket.on(
     SocketEventEnums.SEND_LOCATION,
-    ({ emergencyResponseId, providerLocation }) => {
+    async ({ emergencyResponseId, providerLocation }) => {
+      if (!socket.user?.id) return;
+
+      const updated = await db
+        .update(serviceProvider)
+        .set({ currentLocation: providerLocation })
+        .where(eq(serviceProvider.id, socket.user?.id))
+        .returning({
+          id: serviceProvider.id,
+          currentLocation: serviceProvider.currentLocation,
+        });
+
+      if (updated.length === 0) {
+        console.error("Failed to update provider location");
+        return;
+      }
+
       socket
-        .in(`emergency:${emergencyResponseId}`)
+        .to(SocketRoom.EMERGENCY(emergencyResponseId))
         .emit(SocketEventEnums.UPDATE_LOCATION, {
           userId: socket.user?.id,
           location: providerLocation,
         });
+
       console.log(`[SOCKET] Location sent from ${socket.user?.id}`);
     }
   );
 };
 
-const mountHandleLocationUpdate = (socket: SocketUser) => {
-  socket.on(SocketEventEnums.UPDATE_LOCATION, async ({ location }) => {
-    if (!socket.user?.id) return;
-
-    const updateProvider = await db
-      .update(serviceProvider)
-      .set({
-        currentLocation: location,
-      })
-      .where(eq(serviceProvider.id, socket.user?.id))
-      .returning({
-        id: serviceProvider.id,
-        currentLocation: serviceProvider.currentLocation,
+const mountProviderFoundEvent = (socket: SocketUser) => {
+  socket.on(SocketEventEnums.PROVIDER_FOUND, ({ emergencyResponseId }) => {
+    // Emit needLocation event to all providers in the emergency room
+    socket
+      .to(SocketRoom.EMERGENCY(emergencyResponseId))
+      .emit(SocketEventEnums.NEED_LOCATION, {
+        emergencyResponseId,
       });
 
-    if (updateProvider.length === 0) {
-      throw new ApiError(500, "Error updating provider location");
-    }
-
     console.log(
-      `[SOCKET] Location Update from ${socket.user?.id}, ${location}`
+      `[SOCKET] Need location event emitted for emergency: ${emergencyResponseId}`
     );
   });
 };
 
 const authenticateUser = async (socket: SocketUser) => {
-  const cookies = cookie.parse(socket.request.headers.cookie || "");
-  let token = cookies?.accessToken;
+  const cookies = parse((socket.handshake.headers?.cookie as string) || "");
+
+  let token = cookies?.token;
   if (!token) token = socket.handshake.auth.token;
   if (!token) throw new ApiError(401, "Unauthorized");
 
   const decoded = verifyJWT(token) as Partial<TUser>;
   if (!decoded || !decoded.id) throw new ApiError(401, "Unauthorized");
 
-  let loggedInEntity = null;
-  loggedInEntity = await db.query.user.findFirst({
+  const userEntity = await db.query.user.findFirst({
     where: eq(user.id, decoded.id),
     columns: {
       id: true,
@@ -85,8 +94,12 @@ const authenticateUser = async (socket: SocketUser) => {
     },
   });
 
-  if (!loggedInEntity) {
-    loggedInEntity = await db.query.serviceProvider.findFirst({
+  if (userEntity) {
+    socket.user = userEntity;
+    socket.join(SocketRoom.USER(userEntity.id));
+    console.log("User connected 🗼. userId: ", userEntity.id.toString());
+  } else {
+    const serviceProviderEntity = await db.query.serviceProvider.findFirst({
       where: eq(serviceProvider.id, decoded.id),
       columns: {
         id: true,
@@ -97,14 +110,21 @@ const authenticateUser = async (socket: SocketUser) => {
         organizationId: true,
       },
     });
+
+    if (!serviceProviderEntity) {
+      throw new ApiError(401, "Unidentified Role. Please Login again.");
+    }
+
+    socket.user = serviceProviderEntity;
+    socket.join(SocketRoom.PROVIDER(serviceProviderEntity.id));
+    console.log(
+      "Service Provider connected 🗼. providerId: ",
+      serviceProvider.id.toString()
+    );
   }
 
-  if (!loggedInEntity) throw new ApiError(401, "Unauthorized");
-  socket.user = loggedInEntity;
-  socket.join(loggedInEntity.id);
   socket.emit(SocketEventEnums.CONNECTION_EVENT);
   socket.emit(SocketEventEnums.AUTHORIZED_EVENT);
-  console.log("User connected 🗼. userId: ", loggedInEntity.id.toString());
 };
 
 const handleSocketConnection = async (socket: SocketUser) => {
@@ -113,7 +133,7 @@ const handleSocketConnection = async (socket: SocketUser) => {
 
     mountJoinRoomEvent(socket);
     mountSendLocationEvent(socket);
-    mountHandleLocationUpdate(socket);
+    mountProviderFoundEvent(socket);
 
     socket.on(SocketEventEnums.DISCONNECT_EVENT, (error: string) => {
       console.log(
@@ -138,7 +158,7 @@ const initializeSocketIo = (io: Server) => {
 
 const emitSocketEvent = (
   req: Request,
-  roomId: string,
+  roomId: SocketRoomType,
   event: SocketEventEnums,
   payload: any
 ) => {

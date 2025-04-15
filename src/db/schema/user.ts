@@ -14,7 +14,6 @@ import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 import { z } from "zod";
 import { emergencyRequest } from "./emergencyRequest";
 import { feedback } from "./feedback";
-import { locationTracking } from "./locationTracking";
 
 export const userRolesEnum = pgEnum("role", ["admin", "user"]);
 
@@ -53,7 +52,6 @@ export const user = pgTable("user", {
 export const userRelations = relations(user, ({ many }) => ({
   emergencyRequest: many(emergencyRequest),
   feedback: many(feedback),
-  locationTracking: many(locationTracking),
 }));
 
 export const usersSchema = createSelectSchema(user);

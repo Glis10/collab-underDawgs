@@ -48,6 +48,7 @@ const registerServiceProvider = asyncHandler(
     const parsedValues = newServiceProviderSchema.safeParse(req.body);
 
     if (!parsedValues.success) {
+      console.error("Parsing Error: ", parsedValues.error.errors);
       const validationError = new ApiError(
         400,
         "Error validating data",
@@ -128,6 +129,7 @@ const loginServiceProvider = asyncHandler(
     const parsedValues = loginServiceProviderSchema.safeParse(req.body);
 
     if (!parsedValues.success) {
+      console.error("Parsing Error: ", parsedValues.error.errors);
       const validationError = new ApiError(
         400,
         "Error validating data",

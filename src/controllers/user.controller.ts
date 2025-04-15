@@ -111,6 +111,7 @@ const registerUser = asyncHandler(async (req: Request, res: Response) => {
 
 const loginUser = asyncHandler(async (req: Request, res: Response) => {
   const { phoneNumber, email, password } = req.body;
+  console.log(req.body);
 
   // TODO: check the validation schema
   const parsedValues = loginUserSchema.safeParse(req.body);
@@ -208,6 +209,8 @@ const logoutUser = asyncHandler(async (req: Request, res: Response) => {
   if (!loggedInUser || !loggedInUser.id) {
     throw new ApiError(401, "Unauthorized");
   }
+
+  console.log(loggedInUser);
 
   const existingUser = await db.query.user.findFirst({
     where: eq(user.id, loggedInUser.id),

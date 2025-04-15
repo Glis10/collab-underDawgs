@@ -3,27 +3,54 @@ import { Request, Response } from "express";
 import db from "@/db";
 import ApiError from "@/utils/api/ApiError";
 import { and, eq } from "drizzle-orm";
-import { emergencyRequest, newEmergencyRequestSchema } from "@/db/schema";
+import { emergencyRequest, newEmergencyRequestSchema, user } from "@/db/schema";
 import ApiResponse from "@/utils/api/ApiResponse";
 import { getBestServiceProvider } from "@/utils/maps";
 
 const createEmergencyRequest = asyncHandler(
   async (req: Request, res: Response) => {
-    const { emergencyType, emergencyDescription, emergencyLocation } = req.body;
-    const user = req.user;
+    const { emergencyType, emergencyDescription, userLocation } = req.body;
+    const loggedInUser = req.user;
 
-    if (!user.id) {
+    if (!loggedInUser.id) {
+      console.error("User ID is required");
       throw new ApiError(400, "User ID is required");
     }
 
+    if (!userLocation) {
+      console.error("user location required");
+      throw new ApiError(400, "user location required");
+    }
+
+    if (!userLocation.latitude || !userLocation.longitude) {
+      console.error("Emergency location coordinates are required");
+      throw new ApiError(400, "Emergency location coordinates are required");
+    }
+
+    if (
+      isNaN(parseFloat(userLocation.latitude)) ||
+      isNaN(parseFloat(userLocation.longitude))
+    ) {
+      console.error("Invalid emergency location coordinates");
+      throw new ApiError(400, "Invalid emergency location coordinates");
+    }
+
+    const updateUserLocation = await db
+      .update(user)
+      .set({
+        currentLocation: userLocation,
+      })
+      .where(eq(user.id, loggedInUser.id));
+
     const parsedValues = newEmergencyRequestSchema.safeParse({
-      userId: user.id,
+      userId: loggedInUser.id,
       serviceType: emergencyType,
       description: emergencyDescription,
-      location: emergencyLocation,
+      location: userLocation,
     });
 
     if (!parsedValues.success) {
+      console.error("Parsing Error: ", parsedValues.error.errors);
       throw new ApiError(400, parsedValues.error.errors.join(","));
     }
 
@@ -41,47 +68,13 @@ const createEmergencyRequest = asyncHandler(
       });
 
     if (!newEmergencyRequest) {
+      console.error("Error creating emergency request");
       throw new ApiError(500, "Error creating emergency request");
     }
 
-    if (!emergencyLocation) {
-      throw new ApiError(400, "Emergency location is required");
-    }
-
-    if (!emergencyLocation.latitude || !emergencyLocation.longitude) {
-      throw new ApiError(400, "Emergency location coordinates are required");
-    }
-
-    if (
-      isNaN(parseFloat(emergencyLocation.latitude)) ||
-      isNaN(parseFloat(emergencyLocation.longitude))
-    ) {
-      throw new ApiError(400, "Invalid emergency location coordinates");
-    }
-
-    const emergencyRequestLocation = {
-      latitude: parseFloat(emergencyLocation.latitude),
-      longitude: parseFloat(emergencyLocation.longitude),
-    };
-
-    const bestServiceProvider = await getBestServiceProvider(
-      emergencyRequestLocation
-    );
-
-    if (!bestServiceProvider || !bestServiceProvider.id) {
-      const emergencyRequestId = newEmergencyRequest[0].id;
-      await db
-        .delete(emergencyRequest)
-        .where(eq(emergencyRequest.id, emergencyRequestId));
-      throw new ApiError(404, "No available service provider found");
-    }
-
-    const serviceProviderId = bestServiceProvider.id;
-
     res.status(201).json(
       new ApiResponse(201, "Emergency request created", {
-        emergencyRequest: newEmergencyRequest,
-        serviceProviderId,
+        emergencyRequest: newEmergencyRequest[0],
       })
     );
   }
@@ -108,6 +101,7 @@ const getUsersEmergencyRequests = asyncHandler(
     const loggedInUser = req.user;
 
     if (!loggedInUser || !loggedInUser.id) {
+      console.error("User ID is required");
       throw new ApiError(400, "User ID is required");
     }
 
@@ -129,12 +123,14 @@ const updateEmergencyRequest = asyncHandler(
     const { status } = req.body;
 
     if (!id) {
+      console.error("Emergency request ID is required");
       throw new ApiError(400, "Emergency request ID is required");
     }
 
     const updateData = req.body;
 
     if (Object.keys(updateData).length === 0) {
+      console.error("No data to update");
       throw new ApiError(400, "No data to update");
     }
 
@@ -143,6 +139,7 @@ const updateEmergencyRequest = asyncHandler(
     );
 
     if (invalidKeys.length > 0) {
+      console.error(`Invalid data to update. Invalid keys: ${invalidKeys}`);
       throw new ApiError(
         400,
         `Invalid data to update. Invalid keys: ${invalidKeys}`
@@ -154,6 +151,7 @@ const updateEmergencyRequest = asyncHandler(
     });
 
     if (!existingEmergencyRequest) {
+      console.error("Emergency request not found");
       throw new ApiError(404, "Emergency request not found");
     }
 
@@ -171,6 +169,7 @@ const updateEmergencyRequest = asyncHandler(
       });
 
     if (!updatedEmergencyRequest) {
+      console.error("Error updating emergency request");
       throw new ApiError(500, "Error updating emergency request");
     }
 
@@ -192,14 +191,17 @@ const deleteEmergencyRequest = asyncHandler(
     const loggedInUser = req.user;
 
     if (!loggedInUser || !loggedInUser.id) {
+      console.error("User ID is required");
       throw new ApiError(400, "User ID is required");
     }
 
     if (!loggedInUser.role) {
+      console.error("User role is required");
       throw new ApiError(400, "User role is required");
     }
 
     if (!id) {
+      console.error("Emergency request ID is required");
       throw new ApiError(400, "Emergency request ID is required");
     }
 
@@ -208,6 +210,7 @@ const deleteEmergencyRequest = asyncHandler(
     });
 
     if (!existingEmergencyRequest) {
+      console.error("Emergency request not found");
       throw new ApiError(404, "Emergency request not found");
     }
 
@@ -224,6 +227,7 @@ const deleteEmergencyRequest = asyncHandler(
       });
 
     if (!deletedEmergencyRequest) {
+      console.error("Error deleting emergency request");
       throw new ApiError(500, "Error deleting emergency request");
     }
 
