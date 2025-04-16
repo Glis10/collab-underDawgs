@@ -59,11 +59,14 @@ async function getBestServiceProvider(userLocation: LatLng) {
 
   // ! TODO: Remove this in Production or find better solution
   // If no nearby providers found, get any available provider
-  const anyAvailableProvider = await db.query.serviceProvider.findFirst({
-    where: eq(serviceProvider.serviceStatus, "available"),
-  });
+  if (process.env.NODE_ENV === "development") {
+    const anyAvailableProvider = await db.query.serviceProvider.findFirst({
+      where: eq(serviceProvider.serviceStatus, "available"),
+    });
+    return anyAvailableProvider;
+  }
 
-  return anyAvailableProvider;
+  return null;
 }
 
 export { getBestServiceProvider };
