@@ -13,12 +13,14 @@ import { getOptimalRoute } from "@/utils/maps/galli-maps";
 import { emitSocketEvent } from "@/socket";
 import { SocketEventEnums, SocketRoom } from "@/constants";
 import { getBestServiceProvider } from "@/utils/maps";
+import { createNearServiceProviders } from "@/utils";
 
 const createEmergencyResponse = asyncHandler(
   async (req: Request, res: Response) => {
     const loggedInUser = req.user;
 
     if (!loggedInUser || !loggedInUser.id) {
+      console.error("Please login to perform this action");
       throw new ApiError(400, "Please login to perform this action");
     }
 
@@ -27,6 +29,7 @@ const createEmergencyResponse = asyncHandler(
     let { emergencyRequestId, destLocation } = req.body;
 
     if (!emergencyRequestId) {
+      console.error("Emergency ID are required");
       throw new ApiError(400, "Emergency ID are required");
     }
 
@@ -38,6 +41,7 @@ const createEmergencyResponse = asyncHandler(
       });
 
     if (existingEmergencyResponse) {
+      console.error("Emergency response already exists");
       throw new ApiError(400, "Emergency response already exists");
     }
 
@@ -46,6 +50,11 @@ const createEmergencyResponse = asyncHandler(
         "No destLocation passed. Assigning user's default location"
       );
       destLocation = loggedInUser.currentLocation;
+    }
+
+    if (process.env.NODE_ENV === "development") {
+      // create 2 near service providers if in development mode
+      await createNearServiceProviders(destLocation, 2);
     }
 
     if (
@@ -64,7 +73,8 @@ const createEmergencyResponse = asyncHandler(
     const bestServiceProvider = await getBestServiceProvider(
       emergencyRequestLocation
     );
-
+ 
+    // ! This won't work on development mode as any available provider is assigned
     if (!bestServiceProvider || !bestServiceProvider.id) {
       await db
         .delete(emergencyRequest)
@@ -85,6 +95,7 @@ const createEmergencyResponse = asyncHandler(
     });
 
     if (!assignedServiceProvider || !emergencyRequestDetails) {
+      console.error("Service provider or emergency request not found");
       throw new ApiError(
         404,
         "Service provider or emergency request not found"
@@ -95,6 +106,7 @@ const createEmergencyResponse = asyncHandler(
       !assignedServiceProvider.currentLocation ||
       !emergencyRequestDetails.location
     ) {
+      console.error("Service provider or emergency request location not found");
       throw new ApiError(
         404,
         "Service provider or emergency request location not found"
@@ -107,6 +119,7 @@ const createEmergencyResponse = asyncHandler(
       !emergencyRequestDetails.location.latitude ||
       !emergencyRequestDetails.location.longitude
     ) {
+      console.error("Service provider or emergency request location coordinates not found");
       throw new ApiError(
         404,
         "Service provider or emergency request location coordinates not found"
@@ -132,6 +145,7 @@ const createEmergencyResponse = asyncHandler(
     }
 
     if (!optimalPath) {
+      console.error("Error getting optimal path");
       throw new ApiError(400, "Error getting optimal path");
     }
 
@@ -156,6 +170,7 @@ const createEmergencyResponse = asyncHandler(
       });
 
     if (!newEmergencyResponse) {
+      console.error("Error creating emergency response");
       throw new ApiError(500, "Error creating emergency response");
     }
 
@@ -199,6 +214,7 @@ const createEmergencyResponse = asyncHandler(
         .delete(emergencyResponse)
         .where(eq(emergencyResponse.id, newEmergencyResponse[0].id));
 
+      console.error("Error updating emergency request and service provider status");
       throw new ApiError(
         500,
         "Error updating emergency request and service provider status"
@@ -219,6 +235,7 @@ const getEmergencyResponse = asyncHandler(
     const { id } = req.params;
 
     if (!id) {
+      console.error("Emergency response ID is required");
       throw new ApiError(400, "Emergency response ID is required");
     }
 
@@ -228,6 +245,7 @@ const getEmergencyResponse = asyncHandler(
       });
 
     if (!existingEmergencyResponse) {
+      console.error("Emergency response not found");
       throw new ApiError(404, "Emergency response not found");
     }
 
@@ -245,6 +263,7 @@ const updateEmergencyResponse = asyncHandler(
     const { statusUpdate, updateDescription } = req.body;
 
     if (!id) {
+      console.error("Emergency response ID is required");
       throw new ApiError(400, "Emergency response ID is required");
     }
 
@@ -254,6 +273,7 @@ const updateEmergencyResponse = asyncHandler(
       });
 
     if (!existingEmergencyResponse) {
+      console.error("Emergency response not found");
       throw new ApiError(404, "Emergency response not found");
     }
 
@@ -276,6 +296,7 @@ const updateEmergencyResponse = asyncHandler(
       });
 
     if (!updatedEmergencyResponse) {
+      console.error("Error updating emergency response");
       throw new ApiError(500, "Error updating emergency response");
     }
 
@@ -296,6 +317,7 @@ const deleteEmergencyResponse = asyncHandler(
     const { id } = req.params;
 
     if (!id) {
+      console.error("Emergency response ID is required");
       throw new ApiError(400, "Emergency response ID is required");
     }
 
@@ -305,6 +327,7 @@ const deleteEmergencyResponse = asyncHandler(
       });
 
     if (!existingEmergencyResponse) {
+      console.error("Emergency response not found");
       throw new ApiError(404, "Emergency response not found");
     }
 
@@ -324,6 +347,7 @@ const deleteEmergencyResponse = asyncHandler(
       });
 
     if (!deletedEmergencyResponse) {
+      console.error("Error deleting emergency response");
       throw new ApiError(500, "Error deleting emergency response");
     }
 
