@@ -57,6 +57,10 @@ const createEmergencyResponse = asyncHandler(
       await createNearServiceProviders(destLocation, 2);
     }
 
+    const emergencyRequestDetails = await db.query.emergencyRequest.findFirst({
+      where: eq(emergencyRequest.id, emergencyRequestId),
+    });
+
     if (
       isNaN(parseFloat(destLocation.latitude)) ||
       isNaN(parseFloat(destLocation.longitude))
@@ -70,10 +74,18 @@ const createEmergencyResponse = asyncHandler(
       longitude: parseFloat(destLocation.longitude),
     };
 
+    const emergencyRequestType = emergencyRequestDetails?.serviceType;
+
+    if (!emergencyRequestType) {
+      console.error("Emergency request type not found");
+      throw new ApiError(400, "Emergency request type not found");
+    }
+
     const bestServiceProvider = await getBestServiceProvider(
-      emergencyRequestLocation
+      emergencyRequestLocation,
+      emergencyRequestType
     );
- 
+
     // ! This won't work on development mode as any available provider is assigned
     if (!bestServiceProvider || !bestServiceProvider.id) {
       await db
@@ -88,10 +100,6 @@ const createEmergencyResponse = asyncHandler(
 
     const assignedServiceProvider = await db.query.serviceProvider.findFirst({
       where: eq(serviceProvider.id, serviceProviderId),
-    });
-
-    const emergencyRequestDetails = await db.query.emergencyRequest.findFirst({
-      where: eq(emergencyRequest.id, emergencyRequestId),
     });
 
     if (!assignedServiceProvider || !emergencyRequestDetails) {
@@ -119,7 +127,9 @@ const createEmergencyResponse = asyncHandler(
       !emergencyRequestDetails.location.latitude ||
       !emergencyRequestDetails.location.longitude
     ) {
-      console.error("Service provider or emergency request location coordinates not found");
+      console.error(
+        "Service provider or emergency request location coordinates not found"
+      );
       throw new ApiError(
         404,
         "Service provider or emergency request location coordinates not found"
@@ -214,12 +224,17 @@ const createEmergencyResponse = asyncHandler(
         .delete(emergencyResponse)
         .where(eq(emergencyResponse.id, newEmergencyResponse[0].id));
 
-      console.error("Error updating emergency request and service provider status");
+      console.error(
+        "Error updating emergency request and service provider status"
+      );
       throw new ApiError(
         500,
         "Error updating emergency request and service provider status"
       );
     }
+
+    console.log("Optimal path", optimalPath);
+    console.log("New emergency response", newEmergencyResponse);
 
     res.status(201).json(
       new ApiResponse(201, "Emergency response created", {
