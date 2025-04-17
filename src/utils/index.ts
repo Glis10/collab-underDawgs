@@ -14,19 +14,18 @@ interface LatLng {
 }
 
 export const createServiceProvider = async (location: LatLng) => {
-  const randomOrganization = await db.query.organization.findFirst({});
+  try {
+    const randomOrganization = await db.query.organization.findFirst({});
 
-  if (!randomOrganization) {
-    throw new Error("No organization found");
-  }
+    if (!randomOrganization) {
+      throw new Error("No organization found");
+    }
 
-  const createdServiceProvider = await db
-    .insert(serviceProvider)
-    .values({
+    const fakeData = {
       name: faker.internet.username(),
       age: faker.number.int({ min: 18, max: 65 }),
       email: faker.internet.email(),
-      phoneNumber: +faker.phone.number(),
+      phoneNumber: `98${Math.random().toString().slice(2, 11)}`,
       primaryAddress: faker.location.streetAddress(),
       password: faker.internet.password(),
       serviceType: randomOrganization.serviceCategory,
@@ -37,16 +36,41 @@ export const createServiceProvider = async (location: LatLng) => {
         longitude: location.longitude.toString(),
       },
       serviceStatus: "available",
-    })
-    .returning({
-      id: serviceProvider.id,
-      currentLocation: serviceProvider.currentLocation,
-      serviceStatus: serviceProvider.serviceStatus,
-    });
+    };
 
-  console.log("Randomly created Service Provider", createdServiceProvider[0]);
+    console.log("Fake data", fakeData);
 
-  return createdServiceProvider;
+    const createdServiceProvider = await db
+      .insert(serviceProvider)
+      .values({
+        name: faker.internet.username(),
+        age: faker.number.int({ min: 18, max: 65 }),
+        email: faker.internet.email(),
+        phoneNumber: parseInt(`98${Math.random().toString().slice(2, 11)}`),
+        primaryAddress: faker.location.streetAddress(),
+        password: faker.internet.password(),
+        serviceType: randomOrganization.serviceCategory,
+        isVerified: true,
+        organizationId: randomOrganization.id,
+        currentLocation: {
+          latitude: location.latitude.toString(),
+          longitude: location.longitude.toString(),
+        },
+        serviceStatus: "available",
+      })
+      .returning({
+        id: serviceProvider.id,
+        currentLocation: serviceProvider.currentLocation,
+        serviceStatus: serviceProvider.serviceStatus,
+      });
+
+    console.log("Randomly created Service Provider", createdServiceProvider[0]);
+
+    return createdServiceProvider;
+  } catch (error) {
+    console.error("Error creating service provider:", error);
+    throw error;
+  }
 };
 
 export const createNearServiceProviders = async (
@@ -55,9 +79,12 @@ export const createNearServiceProviders = async (
 ) => {
   const createdServiceProviders = [];
   for (let i = 0; i < count; i++) {
+    const distance = 0.04 + Math.random() * 0.01;
+    const angle = Math.random() * 2 * Math.PI;
+
     const serviceProvider = await createServiceProvider({
-      latitude: destLocation.latitude + (Math.random() - 0.5) * 0.01,
-      longitude: destLocation.longitude + (Math.random() - 0.5) * 0.01,
+      latitude: destLocation.latitude + Math.sin(angle) * distance,
+      longitude: destLocation.longitude + Math.cos(angle) * distance,
     });
     createdServiceProviders.push(serviceProvider);
   }

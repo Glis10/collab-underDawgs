@@ -32,7 +32,7 @@ const sendOTP = async (phoneNumber: string): Promise<string | null> => {
       return otpToken;
     } catch (error: any) {
       console.log("Error Sending OTP", error);
-      throw new Error("Error Sending OTP. Please try again later");
+      throw new ApiError(500, "Error Sending OTP. Please try again later");
     }
   }
 
@@ -55,10 +55,12 @@ const registerUser = asyncHandler(async (req: Request, res: Response) => {
   });
 
   if (role && role == "admin" && !adminEmails.includes(email)) {
+    console.log("Admin email not authorized");
     throw new ApiError(401, "Admin email not authorized");
   }
 
   if (phoneNumber && /^[0-9]{10}$/.exec(phoneNumber) === null) {
+    console.log("Invalid phone number");
     throw new ApiError(400, "Invalid phone number");
   }
 
@@ -71,6 +73,8 @@ const registerUser = asyncHandler(async (req: Request, res: Response) => {
       )
     );
 
+    console.log("Validation error", validationError);
+
     return res.status(400).json(validationError);
   }
 
@@ -79,6 +83,7 @@ const registerUser = asyncHandler(async (req: Request, res: Response) => {
   });
 
   if (existingUser) {
+    console.log("User with this email or phone number already exists");
     throw new ApiError(
       400,
       "User with this email or phone number already exists"
@@ -99,6 +104,7 @@ const registerUser = asyncHandler(async (req: Request, res: Response) => {
     });
 
   if (!newUser) {
+    console.log("Error registering user. Please try again");
     throw new ApiError(400, "Error registering user. Please try again");
   }
 
@@ -110,6 +116,7 @@ const registerUser = asyncHandler(async (req: Request, res: Response) => {
 });
 
 const loginUser = asyncHandler(async (req: Request, res: Response) => {
+  console.log("Hello world");
   const { phoneNumber, email, password } = req.body;
   console.log(req.body);
 
@@ -144,12 +151,14 @@ const loginUser = asyncHandler(async (req: Request, res: Response) => {
   });
 
   if (!existingUser) {
+    console.log("User not found");
     throw new ApiError(400, "User not found");
   }
 
   const isPasswordValid = await bcrypt.compare(password, existingUser.password);
 
   if (!isPasswordValid) {
+    console.log("Invalid credentials");
     throw new ApiError(400, "Invalid credentials");
   }
 
@@ -157,6 +166,7 @@ const loginUser = asyncHandler(async (req: Request, res: Response) => {
     const otpToken = await sendOTP(String(existingUser.phoneNumber));
 
     if (!otpToken) {
+      console.log("Error Sending OTP token. Please try again");
       throw new ApiError(300, "Error Sending OTP token. Please try again");
     }
 
@@ -171,8 +181,14 @@ const loginUser = asyncHandler(async (req: Request, res: Response) => {
       .where(eq(user.id, existingUser.id));
 
     if (!updatedUser) {
+      console.log("Error Updating user. Please try again");
       throw new ApiError(400, "Error Updating user. Please try again");
     }
+
+    console.log("OTP sent to user for verification", {
+      userId: existingUser.id,
+      otpToken,
+    });
 
     return res.status(200).json(
       new ApiResponse(200, "OTP sent to user for verification", {
@@ -207,6 +223,7 @@ const logoutUser = asyncHandler(async (req: Request, res: Response) => {
   const loggedInUser = req.user;
 
   if (!loggedInUser || !loggedInUser.id) {
+    console.log("Unauthorized");
     throw new ApiError(401, "Unauthorized");
   }
 
@@ -225,6 +242,7 @@ const logoutUser = asyncHandler(async (req: Request, res: Response) => {
   });
 
   if (!existingUser) {
+    console.log("Unauthorized User");
     throw new ApiError(401, "Unauthorized User");
   }
 
@@ -242,6 +260,7 @@ const updateUser = asyncHandler(async (req: Request, res: Response) => {
   const loggedInUser = req.user;
 
   if (!loggedInUser || !loggedInUser.id) {
+    console.log("Unauthorized");
     throw new ApiError(401, "Unauthorized");
   }
 
@@ -250,11 +269,13 @@ const updateUser = asyncHandler(async (req: Request, res: Response) => {
   });
 
   if (!existingUser) {
+    console.log("Unauthorized");
     throw new ApiError(401, "Unauthorized");
   }
   const updateData = req.body;
 
   if (Object.keys(updateData).length === 0) {
+    console.log("No data to update");
     throw new ApiError(400, "No data to update");
   }
 
@@ -263,6 +284,7 @@ const updateUser = asyncHandler(async (req: Request, res: Response) => {
   );
 
   if (invalidKeys.length > 0) {
+    console.log(`Invalid data to update. Invalid keys: ${invalidKeys}`);
     throw new ApiError(
       400,
       `Invalid data to update. Invalid keys: ${invalidKeys}`
@@ -283,6 +305,7 @@ const updateUser = asyncHandler(async (req: Request, res: Response) => {
     });
 
   if (!updatedUser.length) {
+    console.log("Failed to update user");
     throw new ApiError(500, "Failed to update user");
   }
 
@@ -297,6 +320,7 @@ const getProfile = asyncHandler(async (req: Request, res: Response) => {
   const loggedInUser = req.user;
 
   if (!loggedInUser || !loggedInUser.id) {
+    console.log("Unauthorized");
     throw new ApiError(401, "Unauthorized");
   }
 
@@ -310,6 +334,7 @@ const getProfile = asyncHandler(async (req: Request, res: Response) => {
   });
 
   if (!existingUser) {
+    console.log("User not found");
     throw new ApiError(404, "User not found");
   }
 
@@ -323,6 +348,7 @@ const getUser = asyncHandler(async (req: Request, res: Response) => {
   const loggedInUser = req.user;
 
   if (!loggedInUser || loggedInUser.role !== "admin") {
+    console.log("User not authorized");
     throw new ApiError(401, "User not authorized");
   }
 
@@ -336,6 +362,7 @@ const getUser = asyncHandler(async (req: Request, res: Response) => {
   });
 
   if (!existingUser) {
+    console.log("User not found");
     throw new ApiError(404, "User not found");
   }
 
@@ -350,10 +377,12 @@ const verifyUser = asyncHandler(async (req: Request, res: Response) => {
   const { otpToken, userId } = req.body;
 
   if (!otpToken) {
+    console.log("Please provide OTP");
     throw new ApiError(400, "Please provide OTP");
   }
 
   if (!userId) {
+    console.log("Please provide user ID");
     throw new ApiError(400, "Please provide user ID");
   }
 
@@ -365,14 +394,19 @@ const verifyUser = asyncHandler(async (req: Request, res: Response) => {
   });
 
   if (!existingUser) {
+    console.log("User not found");
     throw new ApiError(400, "User not found");
   }
 
   if (!user.verificationToken || !user.tokenExpiry) {
+    console.log("Verification token not found");
     throw new ApiError(400, "Verification token not found");
   }
 
   if (!existingUser.tokenExpiry) {
+    console.log(
+      "Verification token expiry not registered. Please verify again."
+    );
     throw new ApiError(
       400,
       "Verification token expiry not registered. Please verify again."
@@ -383,10 +417,12 @@ const verifyUser = asyncHandler(async (req: Request, res: Response) => {
   const currentTime = new Date(Date.now()).toISOString();
 
   if (new Date(currentTime) < tokenExpiry) {
+    console.log("Verification token expired");
     throw new ApiError(400, "Verification token expired");
   }
 
   if (otpToken !== existingUser.verificationToken) {
+    console.log("Invalid OTP");
     throw new ApiError(400, "Invalid OTP");
   }
 
@@ -405,6 +441,7 @@ const verifyUser = asyncHandler(async (req: Request, res: Response) => {
     });
 
   if (!updatedUser.length || !updatedUser[0].isVerified) {
+    console.log("Failed to verify user");
     throw new ApiError(500, "Failed to verify user");
   }
 
@@ -419,6 +456,7 @@ const forgotPassword = asyncHandler(async (req: Request, res: Response) => {
   const { email, phoneNumber } = req.body;
 
   if (!email && !phoneNumber) {
+    console.log("Please provide email or phone number");
     throw new ApiError(400, "Please provide email or phone number");
   }
 
@@ -427,12 +465,14 @@ const forgotPassword = asyncHandler(async (req: Request, res: Response) => {
   });
 
   if (!existingUser) {
+    console.log("User not found with given email or phone");
     throw new ApiError(404, "User not found with given email or phone");
   }
 
   const otpToken = await sendOTP(String(existingUser.phoneNumber));
 
   if (!otpToken) {
+    console.log("Error Sending OTP token. Please try again");
     throw new ApiError(300, "Error Sending OTP token. Please try again");
   }
 
@@ -447,6 +487,7 @@ const forgotPassword = asyncHandler(async (req: Request, res: Response) => {
     .where(eq(user.id, existingUser.id));
 
   if (!updatedUser) {
+    console.log("Error setting verfication token");
     throw new ApiError(400, "Error setting verfication token");
   }
 
@@ -462,14 +503,17 @@ const resetPassword = asyncHandler(async (req: Request, res: Response) => {
   const { otpToken, userId, password } = req.body;
 
   if (!otpToken) {
+    console.log("Please provide OTP");
     throw new ApiError(400, "Please provide OTP");
   }
 
   if (!userId) {
+    console.log("Please provide user ID");
     throw new ApiError(400, "Please provide user ID");
   }
 
   if (!password) {
+    console.log("Please provide new password");
     throw new ApiError(400, "Please provide new password");
   }
 
@@ -478,6 +522,7 @@ const resetPassword = asyncHandler(async (req: Request, res: Response) => {
   });
 
   if (!existingUser) {
+    console.log("User not found");
     throw new ApiError(400, "User not found");
   }
 
@@ -485,10 +530,14 @@ const resetPassword = asyncHandler(async (req: Request, res: Response) => {
     !existingUser.resetPasswordToken ||
     !existingUser.resetPasswordTokenExpiry
   ) {
+    console.log("Reset Password token not found");
     throw new ApiError(400, "Reset Password token not found");
   }
 
   if (!existingUser.resetPasswordTokenExpiry) {
+    console.log(
+      "Verification token expiry not registered. Please verify again."
+    );
     throw new ApiError(
       400,
       "Verification token expiry not registered. Please verify again."
@@ -499,10 +548,12 @@ const resetPassword = asyncHandler(async (req: Request, res: Response) => {
   const currentTime = new Date(Date.now()).toISOString();
 
   if (new Date(currentTime) < tokenExpiry) {
+    console.log("Verification token expired");
     throw new ApiError(400, "Verification token expired");
   }
 
   if (otpToken !== existingUser.resetPasswordToken) {
+    console.log("Invalid OTP");
     throw new ApiError(400, "Invalid OTP");
   }
 
@@ -523,6 +574,7 @@ const resetPassword = asyncHandler(async (req: Request, res: Response) => {
     });
 
   if (!updatedUser.length) {
+    console.log("Failed to update user");
     throw new ApiError(500, "Failed to update user");
   }
 
@@ -537,16 +589,19 @@ const changePassword = asyncHandler(async (req: Request, res: Response) => {
   const loggedInUser = req.user;
 
   if (!loggedInUser || !loggedInUser.id) {
+    console.log("Unauthorized");
     throw new ApiError(401, "Unauthorized");
   }
 
   const { oldPassword, newPassword } = req.body;
 
   if (!oldPassword || !newPassword) {
+    console.log("Please provide old and new password");
     throw new ApiError(400, "Please provide old and new password");
   }
 
   if (!loggedInUser || !loggedInUser.id) {
+    console.log("Unauthorized");
     throw new ApiError(401, "Unauthorized");
   }
 
@@ -565,6 +620,7 @@ const changePassword = asyncHandler(async (req: Request, res: Response) => {
   });
 
   if (!existingUser) {
+    console.log("Unauthorized");
     throw new ApiError(401, "Unauthorized");
   }
 
@@ -574,6 +630,7 @@ const changePassword = asyncHandler(async (req: Request, res: Response) => {
   );
 
   if (!isPasswordValid) {
+    console.log("Invalid credentials");
     throw new ApiError(400, "Invalid credentials");
   }
 

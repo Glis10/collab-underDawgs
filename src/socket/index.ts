@@ -31,6 +31,16 @@ const mountSendLocationEvent = (socket: SocketUser) => {
     async ({ emergencyResponseId, providerLocation }) => {
       if (!socket.user?.id) return;
 
+      if (
+        !providerLocation ||
+        !providerLocation.latitude ||
+        !providerLocation.longitude
+      ) {
+        console.error("Invalid provider location data");
+        return;
+      }
+
+      // Update provider's location in database
       const updated = await db
         .update(serviceProvider)
         .set({ currentLocation: providerLocation })
@@ -45,6 +55,7 @@ const mountSendLocationEvent = (socket: SocketUser) => {
         return;
       }
 
+      // Broadcast location update to all users in the emergency room
       socket
         .to(SocketRoom.EMERGENCY(emergencyResponseId))
         .emit(SocketEventEnums.UPDATE_LOCATION, {
