@@ -1,10 +1,20 @@
 CREATE TYPE "public"."request_status" AS ENUM('pending', 'assigned', 'rejected', 'in_progress');--> statement-breakpoint
-CREATE TYPE "public"."status_update" AS ENUM('accepted', 'arrived', 'on_route');--> statement-breakpoint
+CREATE TYPE "public"."status_update" AS ENUM('accepted', 'arrived', 'on_route', 'rejected');--> statement-breakpoint
 CREATE TYPE "public"."service_type" AS ENUM('ambulance', 'police', 'rescue_team', 'fire_truck');--> statement-breakpoint
 CREATE TYPE "public"."service_status" AS ENUM('available', 'assigned', 'off_duty');--> statement-breakpoint
 CREATE TYPE "public"."role" AS ENUM('admin', 'user');--> statement-breakpoint
 CREATE TYPE "public"."org_status" AS ENUM('not_active', 'active', 'not_verified');--> statement-breakpoint
 CREATE TYPE "public"."priority" AS ENUM('low', 'medium', 'high');--> statement-breakpoint
+CREATE TABLE "emergency_contact" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"name" varchar(50) NOT NULL,
+	"is_comman_contact" boolean DEFAULT false NOT NULL,
+	"phone_number" varchar(15) NOT NULL,
+	"user_id" uuid,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
 CREATE TABLE "emergency_request" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"user_id" uuid NOT NULL,
@@ -22,9 +32,11 @@ CREATE TABLE "emergency_request" (
 CREATE TABLE "emergency_response" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"emergency_request_id" uuid,
-	"response_time" timestamp DEFAULT now(),
 	"service_provider_id" uuid,
 	"status_update" "status_update" DEFAULT 'accepted',
+	"location" json NOT NULL,
+	"assigned_at" timestamp,
+	"responded_at" timestamp DEFAULT now(),
 	"updateDescription" varchar(255),
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL
@@ -56,7 +68,6 @@ CREATE TABLE "service_provider" (
 	"service_status" "service_status" DEFAULT 'available' NOT NULL,
 	"verification_token" varchar(255),
 	"token_expiry" timestamp,
-	"socket_id" varchar(255),
 	"reset_password_token" varchar(255),
 	"reset_password_token_expiry" timestamp,
 	"created_at" timestamp DEFAULT now() NOT NULL,
@@ -64,16 +75,6 @@ CREATE TABLE "service_provider" (
 	CONSTRAINT "service_provider_id_unique" UNIQUE("id"),
 	CONSTRAINT "service_provider_email_unique" UNIQUE("email"),
 	CONSTRAINT "service_provider_phone_number_unique" UNIQUE("phone_number")
-);
---> statement-breakpoint
-CREATE TABLE "location_tracking" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"user_id" uuid,
-	"service_provider_id" uuid,
-	"latitude" varchar(255) NOT NULL,
-	"longitude" varchar(255) NOT NULL,
-	"created_at" timestamp DEFAULT now() NOT NULL,
-	"updated_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "user" (
@@ -89,7 +90,7 @@ CREATE TABLE "user" (
 	"profile_picture" varchar(255),
 	"verification_token" varchar(255),
 	"token_expiry" timestamp,
-	"socket_id" varchar(255),
+	"current_location" json DEFAULT '{"latitude":"","longitude":""}'::json,
 	"reset_password_token" varchar(255),
 	"reset_password_token_expiry" timestamp,
 	"created_at" timestamp DEFAULT now() NOT NULL,
@@ -132,7 +133,5 @@ ALTER TABLE "emergency_response" ADD CONSTRAINT "emergency_response_service_prov
 ALTER TABLE "feedback" ADD CONSTRAINT "feedback_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "feedback" ADD CONSTRAINT "feedback_serviceProvider_id_service_provider_id_fk" FOREIGN KEY ("serviceProvider_id") REFERENCES "public"."service_provider"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "service_provider" ADD CONSTRAINT "service_provider_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "location_tracking" ADD CONSTRAINT "location_tracking_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "location_tracking" ADD CONSTRAINT "location_tracking_service_provider_id_service_provider_id_fk" FOREIGN KEY ("service_provider_id") REFERENCES "public"."service_provider"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "notification" ADD CONSTRAINT "notification_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "notification" ADD CONSTRAINT "notification_service_provider_id_service_provider_id_fk" FOREIGN KEY ("service_provider_id") REFERENCES "public"."service_provider"("id") ON DELETE no action ON UPDATE no action;

@@ -1,6 +1,6 @@
 {
-  "id": "7e9222da-8f6c-45ae-918d-5c6eec7d8cad",
-  "prevId": "00000000-0000-0000-0000-000000000000",
+  "id": "04928a5c-2152-4311-a12d-761ce7d03b83",
+  "prevId": "7e9222da-8f6c-45ae-918d-5c6eec7d8cad",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -194,8 +194,14 @@
           "notNull": false,
           "default": "'accepted'"
         },
-        "location": {
-          "name": "location",
+        "origin_location": {
+          "name": "origin_location",
+          "type": "json",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "destination_location": {
+          "name": "destination_location",
           "type": "json",
           "primaryKey": false,
           "notNull": true
