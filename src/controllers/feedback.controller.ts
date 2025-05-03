@@ -18,20 +18,33 @@ const createFeedback = asyncHandler(async (req: Request, res: Response) => {
     throw new ApiError(400, "Missing required fields");
   }
 
-  const createdFeedback = await db.insert(feedback).values({
-    userId: id,
-    serviceProviderId,
-    message,
-    serviceRatings,
-  });
+  const createdFeedback = await db
+    .insert(feedback)
+    .values({
+      userId: id,
+      serviceProviderId,
+      message,
+      serviceRatings,
+    })
+    .returning({
+      id: feedback.id,
+      userId: feedback.userId,
+      serviceProviderId: feedback.serviceProviderId,
+      message: feedback.message,
+      serviceRatings: feedback.serviceRatings,
+      createdAt: feedback.createdAt,
+      updatedAt: feedback.updatedAt,
+    });
 
-  if (!createdFeedback) {
+  if (!createdFeedback || createdFeedback.length === 0) {
     throw new ApiError(500, "Failed to create feedback");
   }
 
-  res
-    .status(201)
-    .json(new ApiResponse(201, "Feedback created", createdFeedback));
+  res.status(201).json(
+    new ApiResponse(201, "Feedback created", {
+      feedback: createdFeedback[0],
+    })
+  );
 });
 
 const updateFeedback = asyncHandler(async (req: Request, res: Response) => {
@@ -46,6 +59,10 @@ const updateFeedback = asyncHandler(async (req: Request, res: Response) => {
   const existingFeedback = await db.query.feedback.findFirst({
     where: eq(feedback.id, id),
   });
+
+  if (!existingFeedback) {
+    throw new ApiError(404, "Feedback not found");
+  }
 
   if (existingFeedback?.userId !== userId) {
     throw new ApiError(401, "Unauthorized to perform this action");
@@ -71,15 +88,18 @@ const updateFeedback = asyncHandler(async (req: Request, res: Response) => {
   const updatedFeedback = await db
     .update(feedback)
     .set(updateData)
-    .where(eq(feedback.id, id));
+    .where(eq(feedback.id, id))
+    .returning();
 
   if (!updatedFeedback) {
     throw new ApiError(500, "Failed to update feedback");
   }
 
-  res
-    .status(200)
-    .json(new ApiResponse(200, "Feedback updated", updatedFeedback));
+  res.status(200).json(
+    new ApiResponse(200, "Feedback updated", {
+      feedback: updatedFeedback[0],
+    })
+  );
 });
 
 const deleteFeedback = asyncHandler(async (req: Request, res: Response) => {
@@ -94,19 +114,28 @@ const deleteFeedback = asyncHandler(async (req: Request, res: Response) => {
     where: eq(feedback.id, id),
   });
 
+  if (!existingFeedback) {
+    throw new ApiError(404, "Feedback not found");
+  }
+
   if (role !== "admin" && existingFeedback?.userId !== userId) {
     throw new ApiError(401, "Unauthorized to perform this action");
   }
 
-  const deletedFeedback = await db.delete(feedback).where(eq(feedback.id, id));
+  const deletedFeedback = await db
+    .delete(feedback)
+    .where(eq(feedback.id, id))
+    .returning();
 
   if (!deletedFeedback) {
     throw new ApiError(500, "Failed to delete feedback");
   }
 
-  res
-    .status(200)
-    .json(new ApiResponse(200, "Feedback deleted", deletedFeedback));
+  res.status(200).json(
+    new ApiResponse(200, "Feedback deleted", {
+      feedback: deletedFeedback[0],
+    })
+  );
 });
 
 const getFeedback = asyncHandler(async (req: Request, res: Response) => {
