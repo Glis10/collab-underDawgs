@@ -20,10 +20,7 @@ export const feedback = pgTable("feedback", {
     .references(() => serviceProvider.id)
     .notNull(),
   message: varchar("message", { length: 255 * 2 }),
-  serviceRatings: integer("service_ratings").generatedAlwaysAsIdentity({
-    minValue: 1,
-    maxValue: 5,
-  }),
+  serviceRatings: integer("service_ratings"),
 
   createdAt: timestamp("created_at", { mode: "string" }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { mode: "string" }).notNull().defaultNow(),
