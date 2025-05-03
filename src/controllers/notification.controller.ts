@@ -4,6 +4,8 @@ import { notifications, TNotification } from "@/db/schema/notification";
 import db from "@/db";
 import { and, eq, gte, lte } from "drizzle-orm";
 import ApiResponse from "@/utils/api/ApiResponse";
+import { emitSocketEvent } from "@/socket";
+import { SocketEventEnums } from "@/constants";
 
 const getNotifications = asyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
@@ -30,18 +32,23 @@ const getNotifications = asyncHandler(
 );
 
 const createNotification = (data: Partial<TNotification>) => {
-  if (!data.message || !data.type || !data.source) {
-    throw new Error("Missing required fields: message, type, or source");
+  try {
+    if (!data.message || !data.type || !data.source) {
+      throw new Error("Missing required fields: message, type, or source");
+    }
+
+    const newNotification = db.insert(notifications).values({
+      ...data,
+      message: data.message,
+      type: data.type,
+      source: data.source,
+    });
+
+    return newNotification;
+  } catch (error) {
+    console.log("Error creating notification", error);
+    throw new Error("Error creating notification");
   }
-
-  const newNotification = db.insert(notifications).values({
-    ...data,
-    message: data.message,
-    type: data.type,
-    source: data.source,
-  });
-
-  return newNotification;
 };
 
 const markAsRead = asyncHandler(async (req: Request, res: Response) => {

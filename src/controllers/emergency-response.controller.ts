@@ -14,6 +14,7 @@ import { emitSocketEvent } from "@/socket";
 import { SocketEventEnums, SocketRoom } from "@/constants";
 import { getBestServiceProvider } from "@/utils/maps";
 import { createNearServiceProviders } from "@/utils";
+import { createNotification } from "./notification.controller";
 
 const createEmergencyResponse = asyncHandler(
   async (req: Request, res: Response) => {
@@ -217,6 +218,23 @@ const createEmergencyResponse = asyncHandler(
         emergencyResponse: newEmergencyResponse,
         optimalPath,
       }
+    );
+
+    //TODO: add notification creation here
+    const newNotification = createNotification({
+      serviceProviderId: assignedServiceProvider.id,
+      userId: loggedInUser.id,
+      message: "New emergency request",
+      type: "emergency",
+      deliveryStatus: "unread",
+      source: "admin",
+    });
+
+    emitSocketEvent(
+      req,
+      SocketRoom.PROVIDER(assignedServiceProvider.id),
+      SocketEventEnums.NOTIFICATION_CREATED,
+      newNotification
     );
 
     if (!updatedStatus) {

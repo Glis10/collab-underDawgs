@@ -9,6 +9,7 @@ import ApiResponse from "@/utils/api/ApiResponse";
 const createEmergencyRequest = asyncHandler(
   async (req: Request, res: Response) => {
     const { emergencyType, emergencyDescription, userLocation } = req.body;
+    console.log("emergencyType", emergencyType)
     const loggedInUser = req.user;
 
     if (!loggedInUser.id) {

@@ -16,8 +16,9 @@ import ApiResponse from "@/utils/api/ApiResponse";
 const app = express();
 const port = envConfig.port;
 
-app.use(cors(corsOptions));
 
+// middlewares
+app.use(cors(corsOptions));
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
@@ -25,6 +26,7 @@ app.use(cookieParser());
 // V1 API routes
 app.use("/api/v1", v1Router);
 
+// 404 handler for undefined routes 
 app.use((req: Request, res: Response) => {
   res
     .status(404)
@@ -39,8 +41,10 @@ function startServer() {
     const io = new Server(httpServer, { cors: corsOptions });
     app.set("io", io);
 
+    // Socket.io event handlers
     initializeSocketIo(io);
 
+    // Start server on specified port
     httpServer.listen(port, () => {
       console.log(`Server is listening on: ${port}`);
     });
@@ -49,4 +53,5 @@ function startServer() {
   }
 }
 
+// Start server
 startServer();

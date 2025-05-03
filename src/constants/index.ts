@@ -11,6 +11,7 @@ export enum SocketEventEnums {
   JOIN_EMERGENCY_ROOM = "joinEmergencyRoom",
   LEAVE_EMERGENCY_ROOM = "leaveEmergencyRoom",
   EMERGENCY_RESPONSE_CREATED = "emergencyResponseCreated",
+  NOTIFICATION_CREATED = "notificationCreated",
 
   UPDATE_LOCATION = "updateLocation",
   SEND_LOCATION = "sendLocation",

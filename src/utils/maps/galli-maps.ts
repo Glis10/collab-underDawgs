@@ -24,7 +24,7 @@ const compeletAutoSearch = async ({
   currentLong,
 }: IAutoCompleteProps) => {
   try {
-    if (searchQuery.length < 3) {
+    if (searchQuery.length < 4) {
       return null;
     }
 

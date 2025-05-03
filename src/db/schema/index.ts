@@ -5,3 +5,4 @@ export * from "./emergencyResponse";
 export * from "./organization";
 export * from "./emergencyContacts";
 export * from "./feedback";
+export * from "./notification";

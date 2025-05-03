@@ -42,9 +42,7 @@ const sendOTP = async (phoneNumber: string): Promise<string | null> => {
 const registerUser = asyncHandler(async (req: Request, res: Response) => {
   const { name, phoneNumber, age, email, password, primaryAddress, role } =
     req.body;
-
-  console.log(req.body);
-
+  
   const parsedValues = newUserSchema.safeParse({
     name,
     phoneNumber,
@@ -500,6 +498,7 @@ const forgotPassword = asyncHandler(async (req: Request, res: Response) => {
 });
 
 const resetPassword = asyncHandler(async (req: Request, res: Response) => {
+  // TODO: Need to refactor this
   const { otpToken, userId, password } = req.body;
 
   if (!otpToken) {

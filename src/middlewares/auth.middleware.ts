@@ -4,6 +4,7 @@ import { asyncHandler } from "@/utils/api/asyncHandler";
 import { verifyJWT } from "@/utils/tokens/jwtTokens";
 import type { NextFunction, Request, Response } from "express";
 
+// Middleware to verify and decode the token
 const verifyAndDecodeToken = (token: string) => {
   if (!token) {
     throw new ApiError(401, "Unauthorized");
@@ -18,6 +19,7 @@ const verifyAndDecodeToken = (token: string) => {
   return decoded;
 };
 
+// Middleware to validate the token
 const validateServiceProvider = asyncHandler(
   async function validateServiceProvider(
     req: Request,
@@ -33,6 +35,7 @@ const validateServiceProvider = asyncHandler(
   }
 );
 
+// Middleware to validate the role
 const validateRoleAuth = (allowedRoles: TUserRole[]) => {
   return asyncHandler(
     async (req: Request, res: Response, next: NextFunction) => {

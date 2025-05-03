@@ -5,6 +5,7 @@
   "scripts": {
     "build": "tsc && tsc-alias",
     "dev": "tsc-watch --onSuccess \"ts-node -r tsconfig-paths/register ./build/index.js\"",
+    "dbml": "tsx ./src/db/dbml.ts",
     "lint": "eslint ./src/**/.ts"
   },
   "keywords": [],
@@ -22,11 +23,13 @@
     "@types/pg": "^8.11.11",
     "@typescript-eslint/eslint-plugin": "^8.26.1",
     "@typescript-eslint/parser": "^8.26.1",
+    "drizzle-dbml-generator": "^0.10.0",
     "drizzle-kit": "^0.30.5",
     "eslint": "^9.22.0",
     "ts-node": "^10.9.2",
     "tsc-watch": "^6.2.1",
     "tsconfig-paths": "^4.2.0",
+    "tsx": "^4.19.4",
     "typescript": "^5.8.2"
   },
   "dependencies": {

@@ -15,8 +15,10 @@ import { z } from "zod";
 import { emergencyRequest } from "./emergencyRequest";
 import { feedback } from "./feedback";
 
+// User Roles
 export const userRolesEnum = pgEnum("role", ["admin", "user"]);
 
+// User table schema
 export const user = pgTable("user", {
   id: uuid("id").defaultRandom().primaryKey().unique(),
   name: varchar({ length: 255 }).notNull(),
@@ -49,6 +51,7 @@ export const user = pgTable("user", {
   updatedAt: timestamp("updated_at", { mode: "string" }).notNull().defaultNow(),
 });
 
+// User relations
 export const userRelations = relations(user, ({ many }) => ({
   emergencyRequest: many(emergencyRequest),
   feedback: many(feedback),
