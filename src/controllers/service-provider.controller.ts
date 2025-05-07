@@ -10,38 +10,19 @@ import {
   organization,
   TServiceProvider,
   serviceProvider,
+  emergencyResponse,
+  emergencyRequest,
 } from "@/db/schema";
 import ApiResponse from "@/utils/api/ApiResponse";
 import { generateOtpToken } from "@/utils/tokens/otpTokens";
 import { getOtpMessage } from "@/constants";
 import twilioClient from "@/utils/services/twilio";
 import { generateJWT } from "@/utils/tokens/jwtTokens";
-
-// TODO Implement this method at one place only
-const sendOTP = async (phoneNumber: string): Promise<string | null> => {
-  const otpToken = generateOtpToken(phoneNumber);
-  const otpMessage = getOtpMessage(otpToken);
-
-  // ! hardcoded the country code here
-  const toPhoneNumber = `+977${phoneNumber}`;
-
-  if (process.env.NODE_ENV === "production") {
-    try {
-      await twilioClient.messages.create({
-        from: "+1 567 364 6291",
-        to: toPhoneNumber,
-        body: otpMessage,
-      });
-      console.log("Sending OTP Successfull", otpToken);
-      return otpToken;
-    } catch (error: any) {
-      console.log("Error Sending OTP", error);
-      throw new Error("Error Sending OTP. Please try again later");
-    }
-  }
-
-  return otpToken;
-};
+import { emitSocketEvent } from "@/socket";
+import { SocketEventEnums, SocketRoom } from "@/constants";
+import { getBestServiceProvider } from "@/utils/maps";
+import { createNotification } from "./notification.controller";
+import { sendOTP } from "@/utils/services/email";
 
 const registerServiceProvider = asyncHandler(
   async (req: Request, res: Response) => {
@@ -176,9 +157,7 @@ const loginServiceProvider = asyncHandler(
     }
 
     if (existingServiceProvider && !existingServiceProvider.isVerified) {
-      const otpToken = await sendOTP(
-        String(existingServiceProvider.phoneNumber)
-      );
+      const otpToken = await sendOTP(existingServiceProvider.email);
 
       if (!otpToken) {
         throw new ApiError(300, "Error Sending OTP token. Please try again");
@@ -572,6 +551,163 @@ const getServiceProvider = asyncHandler(async (req: Request, res: Response) => {
   );
 });
 
+const updateServiceProviderStatus = asyncHandler(
+  async (req: Request, res: Response) => {
+    const loggedInUser = req.user;
+    const { status, emergencyResponseId } = req.body;
+
+    if (!loggedInUser || !loggedInUser.id) {
+      throw new ApiError(400, "Please login to perform this action");
+    }
+
+    if (!status) {
+      throw new ApiError(400, "Status is required");
+    }
+
+    // Update service provider status
+    const updatedProvider = await db
+      .update(serviceProvider)
+      .set({
+        serviceStatus: status,
+      })
+      .where(eq(serviceProvider.id, loggedInUser.id))
+      .returning();
+
+    if (!updatedProvider || updatedProvider.length === 0) {
+      throw new ApiError(404, "Service provider not found");
+    }
+
+    // If there's an emergency response ID and status is "off_duty" or "unavailable"
+    if (
+      emergencyResponseId &&
+      (status === "off_duty" || status === "unavailable")
+    ) {
+      // Get the emergency response details
+      const emergencyResponseDetails =
+        await db.query.emergencyResponse.findFirst({
+          where: eq(emergencyResponse.id, emergencyResponseId),
+        });
+
+      if (
+        emergencyResponseDetails &&
+        emergencyResponseDetails.emergencyRequestId
+      ) {
+        // Get the emergency request details
+        const emergencyRequestDetails =
+          await db.query.emergencyRequest.findFirst({
+            where: eq(
+              emergencyRequest.id,
+              emergencyResponseDetails.emergencyRequestId
+            ),
+          });
+
+        if (emergencyRequestDetails && emergencyRequestDetails.location) {
+          // Convert location to number type for getBestServiceProvider
+          const location = {
+            latitude: parseFloat(emergencyRequestDetails.location.latitude),
+            longitude: parseFloat(emergencyRequestDetails.location.longitude),
+          };
+
+          // Find the next best service provider
+          const nextBestProvider = await getBestServiceProvider(
+            location,
+            emergencyRequestDetails.serviceType
+          );
+
+          if (nextBestProvider && nextBestProvider.id) {
+            // Update the emergency response with the new provider
+            const updatedResponse = await db
+              .update(emergencyResponse)
+              .set({
+                serviceProviderId: nextBestProvider.id,
+                statusUpdate: "on_route" as const,
+                updateDescription: `Reassigned to ${nextBestProvider.name} due to previous provider being ${status}`,
+              })
+              .where(eq(emergencyResponse.id, emergencyResponseId))
+              .returning();
+
+            // Update the new provider's status
+            await db
+              .update(serviceProvider)
+              .set({
+                serviceStatus: "assigned",
+              })
+              .where(eq(serviceProvider.id, nextBestProvider.id));
+
+            // Create notification for the new provider
+            const newNotification = await createNotification({
+              serviceProviderId: nextBestProvider.id,
+              userId: emergencyRequestDetails.userId,
+              message: "New emergency request assigned to you",
+              type: "emergency",
+              deliveryStatus: "unread",
+              source: "system",
+            });
+
+            // Emit socket events
+            emitSocketEvent(
+              req,
+              SocketRoom.PROVIDER(nextBestProvider.id),
+              SocketEventEnums.EMERGENCY_RESPONSE_CREATED,
+              {
+                emergencyResponse: updatedResponse,
+              }
+            );
+
+            emitSocketEvent(
+              req,
+              SocketRoom.PROVIDER(nextBestProvider.id),
+              SocketEventEnums.NOTIFICATION_CREATED,
+              newNotification
+            );
+
+            // Notify the user about the reassignment
+            emitSocketEvent(
+              req,
+              SocketRoom.USER(emergencyRequestDetails.userId),
+              SocketEventEnums.EMERGENCY_RESPONSE_CREATED,
+              {
+                emergencyResponse: updatedResponse,
+                message: "Service provider has been reassigned",
+              }
+            );
+          } else {
+            // If no other provider is available, update the emergency request status
+            await db
+              .update(emergencyRequest)
+              .set({
+                requestStatus: "pending",
+              })
+              .where(
+                eq(
+                  emergencyRequest.id,
+                  emergencyResponseDetails.emergencyRequestId
+                )
+              );
+
+            // Notify the user that no provider is available
+            emitSocketEvent(
+              req,
+              SocketRoom.USER(emergencyRequestDetails.userId),
+              SocketEventEnums.EMERGENCY_RESPONSE_CREATED,
+              {
+                message:
+                  "No service provider is currently available. Please try again later.",
+              }
+            );
+          }
+        }
+      }
+    }
+
+    res.status(200).json(
+      new ApiResponse(200, "Service provider status updated", {
+        serviceProvider: updatedProvider[0],
+      })
+    );
+  }
+);
+
 export {
   registerServiceProvider,
   loginServiceProvider,
@@ -583,4 +719,5 @@ export {
   forgotServiceProviderPassword,
   getServiceProviderProfile,
   getServiceProvider,
+  updateServiceProviderStatus,
 };

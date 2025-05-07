@@ -13,36 +13,12 @@ import { generateOtpToken } from "@/utils/tokens/otpTokens";
 import { getOtpMessage } from "@/constants";
 import { adminEmails } from "@/config";
 import { capitalizeFirstLetter } from "@/utils";
-
-const sendOTP = async (phoneNumber: string): Promise<string | null> => {
-  const otpToken = generateOtpToken(phoneNumber);
-  const otpMessage = getOtpMessage(otpToken);
-
-  // ! hardcoded the country code here
-  const toPhoneNumber = `+977${phoneNumber}`;
-
-  if (process.env.NODE_ENV === "production") {
-    try {
-      await twilioClient.messages.create({
-        from: "+1 567 364 6291",
-        to: toPhoneNumber,
-        body: otpMessage,
-      });
-      console.log("Sending OTP Successfull", otpToken);
-      return otpToken;
-    } catch (error: any) {
-      console.log("Error Sending OTP", error);
-      throw new ApiError(500, "Error Sending OTP. Please try again later");
-    }
-  }
-
-  return otpToken;
-};
+import { sendOTP } from "@/utils/services/email";
 
 const registerUser = asyncHandler(async (req: Request, res: Response) => {
   const { name, phoneNumber, age, email, password, primaryAddress, role } =
     req.body;
-  
+
   const parsedValues = newUserSchema.safeParse({
     name,
     phoneNumber,
@@ -161,7 +137,7 @@ const loginUser = asyncHandler(async (req: Request, res: Response) => {
   }
 
   if (!existingUser.isVerified) {
-    const otpToken = await sendOTP(String(existingUser.phoneNumber));
+    const otpToken = await sendOTP(existingUser.email);
 
     if (!otpToken) {
       console.log("Error Sending OTP token. Please try again");

@@ -12,10 +12,28 @@ type SocketUser = Socket & {
   user?: Partial<TUser | TServiceProvider>;
 };
 
+interface LocationData {
+  latitude: string;
+  longitude: string;
+}
+
+interface LocationUpdatePayload {
+  emergencyResponseId: string;
+  location: LocationData;
+}
+
 const mountJoinRoomEvent = (socket: SocketUser) => {
   socket.on(
     SocketEventEnums.JOIN_EMERGENCY_ROOM,
-    ({ emergencyResponseId, userId, providerId }) => {
+    ({
+      emergencyResponseId,
+      userId,
+      providerId,
+    }: {
+      emergencyResponseId: string;
+      userId: string;
+      providerId: string;
+    }) => {
       const room = SocketRoom.EMERGENCY(emergencyResponseId);
       socket.join(room);
       console.log(
@@ -28,59 +46,133 @@ const mountJoinRoomEvent = (socket: SocketUser) => {
 const mountSendLocationEvent = (socket: SocketUser) => {
   socket.on(
     SocketEventEnums.SEND_LOCATION,
-    async ({ emergencyResponseId, providerLocation }) => {
-      if (!socket.user?.id) return;
+    async ({ emergencyResponseId, location }: LocationUpdatePayload) => {
+      try {
+        if (!socket.user?.id) {
+          console.error("No user ID found in socket");
+          return;
+        }
 
-      if (
-        !providerLocation ||
-        !providerLocation.latitude ||
-        !providerLocation.longitude
-      ) {
-        console.error("Invalid provider location data");
-        return;
-      }
+        if (!location || !location.latitude || !location.longitude) {
+          console.error("Invalid location data");
+          return;
+        }
 
-      // Update provider's location in database
-      const updated = await db
-        .update(serviceProvider)
-        .set({ currentLocation: providerLocation })
-        .where(eq(serviceProvider.id, socket.user?.id))
-        .returning({
-          id: serviceProvider.id,
-          currentLocation: serviceProvider.currentLocation,
+        // Convert location to string format for database
+        const locationString = {
+          latitude: location.latitude.toString(),
+          longitude: location.longitude.toString(),
+        };
+
+        // Update provider's location in database
+        const updated = await db
+          .update(serviceProvider)
+          .set({ currentLocation: locationString })
+          .where(eq(serviceProvider.id, socket.user?.id))
+          .returning({
+            id: serviceProvider.id,
+            currentLocation: serviceProvider.currentLocation,
+          });
+
+        if (updated.length === 0) {
+          console.error("Failed to update provider location");
+          return;
+        }
+
+        // Broadcast location update to all users in the emergency room
+        socket
+          .to(SocketRoom.EMERGENCY(emergencyResponseId))
+          .emit(SocketEventEnums.UPDATE_LOCATION, {
+            userId: socket.user?.id,
+            location: locationString,
+            timestamp: new Date().toISOString(),
+          });
+
+        console.log(`[SOCKET] Location sent from ${socket.user?.id}`);
+      } catch (error) {
+        console.error("[SOCKET] Error in location update:", error);
+        socket.emit(SocketEventEnums.SOCKET_ERROR, {
+          message: "Failed to update location",
+          error: error instanceof Error ? error.message : "Unknown error",
         });
-
-      if (updated.length === 0) {
-        console.error("Failed to update provider location");
-        return;
       }
+    }
+  );
+};
 
-      // Broadcast location update to all users in the emergency room
-      socket
-        .to(SocketRoom.EMERGENCY(emergencyResponseId))
-        .emit(SocketEventEnums.UPDATE_LOCATION, {
-          userId: socket.user?.id,
-          location: providerLocation,
+const mountUserLocationEvent = (socket: SocketUser) => {
+  socket.on(
+    SocketEventEnums.SEND_USER_LOCATION,
+    async ({ emergencyResponseId, location }: LocationUpdatePayload) => {
+      try {
+        if (!socket.user?.id) {
+          console.error("No user ID found in socket");
+          return;
+        }
+
+        if (!location || !location.latitude || !location.longitude) {
+          console.error("Invalid user location data");
+          return;
+        }
+
+        // Convert location to string format for database
+        const locationString = {
+          latitude: location.latitude.toString(),
+          longitude: location.longitude.toString(),
+        };
+
+        // Update user's location in database
+        const updated = await db
+          .update(user)
+          .set({ currentLocation: locationString })
+          .where(eq(user.id, socket.user?.id))
+          .returning({
+            id: user.id,
+            currentLocation: user.currentLocation,
+          });
+
+        if (updated.length === 0) {
+          console.error("Failed to update user location");
+          return;
+        }
+
+        // Broadcast location update to all providers in the emergency room
+        socket
+          .to(SocketRoom.EMERGENCY(emergencyResponseId))
+          .emit(SocketEventEnums.UPDATE_USER_LOCATION, {
+            userId: socket.user?.id,
+            location: locationString,
+            timestamp: new Date().toISOString(),
+          });
+
+        console.log(`[SOCKET] User location sent from ${socket.user?.id}`);
+      } catch (error) {
+        console.error("[SOCKET] Error in user location update:", error);
+        socket.emit(SocketEventEnums.SOCKET_ERROR, {
+          message: "Failed to update user location",
+          error: error instanceof Error ? error.message : "Unknown error",
         });
-
-      console.log(`[SOCKET] Location sent from ${socket.user?.id}`);
+      }
     }
   );
 };
 
 const mountProviderFoundEvent = (socket: SocketUser) => {
-  socket.on(SocketEventEnums.PROVIDER_FOUND, ({ emergencyResponseId }) => {
-    // Emit needLocation event to all providers in the emergency room
-    socket
-      .to(SocketRoom.EMERGENCY(emergencyResponseId))
-      .emit(SocketEventEnums.NEED_LOCATION, {
-        emergencyResponseId,
-      });
+  socket.on(
+    SocketEventEnums.PROVIDER_FOUND,
+    ({ emergencyResponseId }: { emergencyResponseId: string }) => {
+      // Emit needLocation event to all providers in the emergency room
+      socket
+        .to(SocketRoom.EMERGENCY(emergencyResponseId))
+        .emit(SocketEventEnums.NEED_LOCATION, {
+          emergencyResponseId,
+        });
 
-    console.log(
-      `[SOCKET] Need location event emitted for emergency: ${emergencyResponseId}`
-    );
-  });
+      console.log(
+        `[SOCKET] Need location event emitted for emergency: ${emergencyResponseId}`
+      );
+    }
+  );
 };
 
 const authenticateUser = async (socket: SocketUser) => {
@@ -130,7 +222,7 @@ const authenticateUser = async (socket: SocketUser) => {
     socket.join(SocketRoom.PROVIDER(serviceProviderEntity.id));
     console.log(
       "Service Provider connected 🗼. providerId: ",
-      serviceProvider.id.toString()
+      serviceProviderEntity.id.toString()
     );
   }
 
@@ -144,9 +236,10 @@ const handleSocketConnection = async (socket: SocketUser) => {
 
     mountJoinRoomEvent(socket);
     mountSendLocationEvent(socket);
+    mountUserLocationEvent(socket);
     mountProviderFoundEvent(socket);
 
-    socket.on(SocketEventEnums.DISCONNECT_EVENT, (error: string) => {
+    socket.on(SocketEventEnums.DISCONNECT_EVENT, () => {
       console.log(
         "[SOCKET]: User has disconnected 🚫. userId: " + socket.user?.id
       );
@@ -154,11 +247,13 @@ const handleSocketConnection = async (socket: SocketUser) => {
         socket.leave(socket.user.id);
       }
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error("[SOCKET]: Error authenticating user", error);
     socket.emit(
       SocketEventEnums.SOCKET_ERROR,
-      error?.message || "Something went wrong while connecting to the socket."
+      error instanceof Error
+        ? error.message
+        : "Something went wrong while connecting to the socket."
     );
   }
 };
