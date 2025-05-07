@@ -9,6 +9,11 @@ const envSchema = z.object({
   TWILIO_ACCOUNT_SID: z.string(),
   TWILIO_AUTH_TOKEN: z.string(),
   GALLI_MAPS_TOKEN: z.string(),
+  MAILTRAP_USER: z.string(),
+  MAILTRAP_PASS: z.string(),
+
+  GOOGLE_MAIL: z.string(),
+  GOOGLE_PASS: z.string(),
 });
 
 function createEnvConfig() {
@@ -28,6 +33,11 @@ function createEnvConfig() {
     twilio_account_sid: parsedEnv.data.TWILIO_ACCOUNT_SID,
     twilio_auth_token: parsedEnv.data.TWILIO_AUTH_TOKEN,
     galli_maps_token: parsedEnv.data.GALLI_MAPS_TOKEN,
+    mailtrap_user: parsedEnv.data.MAILTRAP_USER,
+    mailtrap_pass: parsedEnv.data.MAILTRAP_PASS,
+
+    google_mail: parsedEnv.data.GOOGLE_MAIL,
+    google_pass: parsedEnv.data.GOOGLE_PASS,
   };
 }
 

@@ -220,21 +220,39 @@ const createEmergencyResponse = asyncHandler(
       }
     );
 
-    //TODO: add notification creation here
-    const newNotification = createNotification({
+    // Create notification for the service provider
+    const providerNotification = await createNotification({
       serviceProviderId: assignedServiceProvider.id,
       userId: loggedInUser.id,
-      message: "New emergency request",
+      message: `New emergency request assigned to you. Type: ${emergencyRequestType}`,
       type: "emergency",
       deliveryStatus: "unread",
-      source: "admin",
+      source: "system",
     });
 
+    // Create notification for the user
+    const userNotification = await createNotification({
+      serviceProviderId: assignedServiceProvider.id,
+      userId: loggedInUser.id,
+      message: `Emergency request has been assigned to ${assignedServiceProvider.name}`,
+      type: "emergency",
+      deliveryStatus: "unread",
+      source: "system",
+    });
+
+    // Emit socket events for notifications
     emitSocketEvent(
       req,
       SocketRoom.PROVIDER(assignedServiceProvider.id),
       SocketEventEnums.NOTIFICATION_CREATED,
-      newNotification
+      providerNotification
+    );
+
+    emitSocketEvent(
+      req,
+      SocketRoom.USER(loggedInUser.id),
+      SocketEventEnums.NOTIFICATION_CREATED,
+      userNotification
     );
 
     if (!updatedStatus) {

@@ -8,33 +8,28 @@ import {
   resetServiceProviderPassword,
   updateServiceProvider,
   verifyServiceProvider,
+  deleteServiceProvider,
+  updateServiceProviderStatus,
 } from "@/controllers/service-provider.controller";
 import { validateServiceProvider } from "@/middlewares/auth.middleware";
 import { Router } from "express";
 
 const serviceProviderRouter = Router();
 
-serviceProviderRouter.route("/register").post(registerServiceProvider);
-serviceProviderRouter.route("/login").post(loginServiceProvider);
-serviceProviderRouter
-  .route("/logout")
-  .get(validateServiceProvider, logoutServiceProvider);
+// Public routes
+serviceProviderRouter.post("/register", registerServiceProvider);
+serviceProviderRouter.post("/login", loginServiceProvider);
+serviceProviderRouter.post("/verify", verifyServiceProvider);
+serviceProviderRouter.post("/forgot-password", forgotServiceProviderPassword);
+serviceProviderRouter.post("/reset-password", resetServiceProviderPassword);
 
-serviceProviderRouter
-  .route("/update")
-  .put(validateServiceProvider, updateServiceProvider);
-
-serviceProviderRouter.route("/verify").post(verifyServiceProvider);
-serviceProviderRouter
-  .route("/forgot-password")
-  .post(forgotServiceProviderPassword);
-serviceProviderRouter
-  .route("/reset-password")
-  .post(resetServiceProviderPassword);
-
-serviceProviderRouter
-  .route("/profile")
-  .get(validateServiceProvider, getServiceProviderProfile);
-serviceProviderRouter.route("/:id").get(getServiceProvider);
+// Protected routes
+serviceProviderRouter.use(validateServiceProvider);
+serviceProviderRouter.post("/logout", logoutServiceProvider);
+serviceProviderRouter.get("/profile", getServiceProviderProfile);
+serviceProviderRouter.patch("/update", updateServiceProvider);
+serviceProviderRouter.delete("/delete", deleteServiceProvider);
+serviceProviderRouter.get("/:id", getServiceProvider);
+serviceProviderRouter.patch("/status", updateServiceProviderStatus);
 
 export default serviceProviderRouter;
