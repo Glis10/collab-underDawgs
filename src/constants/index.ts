@@ -14,7 +14,9 @@ export enum SocketEventEnums {
   NOTIFICATION_CREATED = "notificationCreated",
 
   UPDATE_LOCATION = "updateLocation",
+  UPDATE_USER_LOCATION = "updateUserLocation",
   SEND_LOCATION = "sendLocation",
+  SEND_USER_LOCATION = "sendUserLocation",
 
   PROVIDER_FOUND = "providerFound",
   NEED_LOCATION = "needLocation",
