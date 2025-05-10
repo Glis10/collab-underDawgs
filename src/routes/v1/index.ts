@@ -8,6 +8,7 @@ import mapsRouter from "@/routes/v1/maps.routes";
 import emergencyResponseRouter from "./emergency-response.routes";
 import healthCheckRouter from "./healthcheck.routes";
 import feedbackRouter from "./feedback.routes";
+import emergencyContactsRouter from "./emergency-contacts.routes";
 
 const v1Router = Router();
 
@@ -21,5 +22,6 @@ v1Router.use("/emergency-request", emergencyRequestRouter);
 v1Router.use("/maps", mapsRouter);
 v1Router.use("/emergency-response", emergencyResponseRouter);
 v1Router.use("/feedback", feedbackRouter);
+v1Router.use("/emergency-contacts", emergencyContactsRouter);
 
 export { v1Router };
