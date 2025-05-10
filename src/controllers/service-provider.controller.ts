@@ -14,9 +14,6 @@ import {
   emergencyRequest,
 } from "@/db/schema";
 import ApiResponse from "@/utils/api/ApiResponse";
-import { generateOtpToken } from "@/utils/tokens/otpTokens";
-import { getOtpMessage } from "@/constants";
-import twilioClient from "@/utils/services/twilio";
 import { generateJWT } from "@/utils/tokens/jwtTokens";
 import { emitSocketEvent } from "@/socket";
 import { SocketEventEnums, SocketRoom } from "@/constants";
