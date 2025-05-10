@@ -14,6 +14,7 @@ export const emergencyContact = pgTable("emergency_contact", {
   id: uuid("id").defaultRandom().primaryKey(),
   name: varchar("name", { length: 50 }).notNull(),
   isCommanContact: boolean("is_comman_contact").notNull().default(false),
+  relationship: varchar("relationship", { length: 50 }).notNull(),
 
   phoneNumber: varchar("phone_number", { length: 15 }).notNull(),
   userId: uuid("user_id"),
