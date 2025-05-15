@@ -7,6 +7,7 @@ import {
   logoutUser,
   registerUser,
   resetPassword,
+  updatePushToken,
   updateUser,
   verifyUser,
 } from "@/controllers/user.controller";
@@ -32,6 +33,7 @@ userRouter.route("/reset-password").post(resetPassword);
 userRouter.route("/change-password").post(validateUser, changePassword);
 
 userRouter.route("/profile").get(validateUser, getProfile);
+userRouter.post("/update-push-token", validateUser, updatePushToken);
 userRouter.route("/:userId").get(getUser);
 
 export default userRouter;

@@ -30,6 +30,7 @@ export const serviceProvider = pgTable("service_provider", {
   email: varchar("email", { length: 255 }).notNull().unique(),
   phoneNumber: bigint("phone_number", { mode: "number" }).notNull().unique(),
   primaryAddress: varchar("primary_address", { length: 255 }).notNull(),
+  serviceArea: varchar("service_area").default("Kathmandu Valley"),
   password: varchar("password", { length: 255 }).notNull(),
   serviceType: serviceTypeEnum("service_type").notNull(),
   isVerified: boolean("is_verified").default(false),
@@ -47,6 +48,19 @@ export const serviceProvider = pgTable("service_provider", {
       longitude: "",
     }),
 
+  vehicleInformation: json("vehicle_information")
+    .$type<{
+      type: string;
+      number: string;
+      model: string;
+      color: string;
+    }>()
+    .default({
+      type: "Not filled",
+      number: "Not filled",
+      model: "Not filled",
+      color: "Not filled",
+    }),
   serviceStatus: statusTypeEnum("service_status")
     .notNull()
     .default("available"),

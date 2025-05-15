@@ -21,6 +21,10 @@ export enum SocketEventEnums {
   PROVIDER_FOUND = "providerFound",
   NEED_LOCATION = "needLocation",
 
+  REQUEST_EMERGENCY_SERVICE = "requestEmergencyService",
+  UPDATE_PROVIDER_STATUS = "updateProviderStatus",
+  PROVIDER_STATUS_UPDATED = "providerStatusUpdated",
+
   SOCKET_ERROR = "socketError",
 }
 

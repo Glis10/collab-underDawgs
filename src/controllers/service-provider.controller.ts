@@ -2,7 +2,7 @@ import { asyncHandler } from "@/utils/api/asyncHandler";
 import { Request, Response } from "express";
 import bcrypt from "bcryptjs";
 import ApiError from "@/utils/api/ApiError";
-import { or, eq, is } from "drizzle-orm";
+import { or, eq, is, and } from "drizzle-orm";
 import db from "@/db";
 import {
   loginServiceProviderSchema,
@@ -20,6 +20,7 @@ import { SocketEventEnums, SocketRoom } from "@/constants";
 import { getBestServiceProvider } from "@/utils/maps";
 import { createNotification } from "./notification.controller";
 import { sendOTP } from "@/utils/services/email";
+import { calculateDistance } from "@/utils/distance";
 
 const registerServiceProvider = asyncHandler(
   async (req: Request, res: Response) => {
@@ -134,6 +135,10 @@ const loginServiceProvider = asyncHandler(
         email: true,
         password: true,
         isVerified: true,
+        serviceStatus: true,
+        serviceType: true,
+        vehicleInformation: true,
+        serviceArea: true,
       },
     });
 
@@ -153,34 +158,34 @@ const loginServiceProvider = asyncHandler(
       throw new ApiError(400, "Invalid Credentials Provided");
     }
 
-    if (existingServiceProvider && !existingServiceProvider.isVerified) {
-      const otpToken = await sendOTP(existingServiceProvider.email);
+    // if (existingServiceProvider && !existingServiceProvider.isVerified) {
+    //   const otpToken = await sendOTP(existingServiceProvider.email);
 
-      if (!otpToken) {
-        throw new ApiError(300, "Error Sending OTP token. Please try again");
-      }
+    //   if (!otpToken) {
+    //     throw new ApiError(300, "Error Sending OTP token. Please try again");
+    //   }
 
-      const tokenExpiry = new Date(Date.now() + 10 * 60 * 1000);
+    //   const tokenExpiry = new Date(Date.now() + 10 * 60 * 1000);
 
-      const servicePerson = await db
-        .update(serviceProvider)
-        .set({
-          verificationToken: otpToken,
-          tokenExpiry: tokenExpiry.toISOString(),
-        })
-        .where(eq(serviceProvider.id, existingServiceProvider.id));
+    //   const servicePerson = await db
+    //     .update(serviceProvider)
+    //     .set({
+    //       verificationToken: otpToken,
+    //       tokenExpiry: tokenExpiry.toISOString(),
+    //     })
+    //     .where(eq(serviceProvider.id, existingServiceProvider.id));
 
-      if (!servicePerson) {
-        throw new ApiError(400, "Error setting verfication token");
-      }
+    //   if (!servicePerson) {
+    //     throw new ApiError(400, "Error setting verfication token");
+    //   }
 
-      return res.status(200).json(
-        new ApiResponse(200, "OTP sent to serviceProvider for verification", {
-          serviceProviderId: existingServiceProvider.id,
-          otpToken,
-        })
-      );
-    }
+    //   return res.status(200).json(
+    //     new ApiResponse(200, "OTP sent to serviceProvider for verification", {
+    //       serviceProviderId: existingServiceProvider.id,
+    //       otpToken,
+    //     })
+    //   );
+    // }
 
     const token = generateJWT(existingServiceProvider as TServiceProvider);
 
@@ -390,7 +395,7 @@ const forgotServiceProviderPassword = asyncHandler(
       );
     }
 
-    const otpToken = await sendOTP(String(phoneNumber));
+    const otpToken = await sendOTP(existingServiceProvider.email);
 
     if (!otpToken) {
       throw new ApiError(300, "Error Sending OTP token. Please try again");
@@ -705,6 +710,135 @@ const updateServiceProviderStatus = asyncHandler(
   }
 );
 
+const getNearbyProviders = asyncHandler(async (req: Request, res: Response) => {
+  const { latitude, longitude, serviceType } = req.query;
+  if (!latitude || !longitude || !serviceType) {
+    throw new ApiError(
+      400,
+      "latitude, longitude, and serviceType are required"
+    );
+  }
+
+  // Find all available providers of the requested type
+  const providers = await db.query.serviceProvider.findMany({
+    where: and(
+      eq(serviceProvider.serviceStatus, "available"),
+      eq(
+        serviceProvider.serviceType,
+        serviceType as "ambulance" | "police" | "rescue_team" | "fire_truck"
+      )
+    ),
+    columns: {
+      id: true,
+      name: true,
+      serviceType: true,
+      currentLocation: true,
+    },
+  });
+
+  // Calculate distance and sort
+  const userLoc = {
+    latitude: parseFloat(latitude as string),
+    longitude: parseFloat(longitude as string),
+  };
+  const withDistance = providers
+    .filter(
+      (p) =>
+        p.currentLocation &&
+        p.currentLocation.latitude &&
+        p.currentLocation.longitude
+    )
+    .map((p) => ({
+      ...p,
+      distance: calculateDistance(userLoc, {
+        latitude: parseFloat(p.currentLocation!.latitude),
+        longitude: parseFloat(p.currentLocation!.longitude),
+      }),
+    }))
+    .sort((a, b) => a.distance - b.distance);
+
+  res.status(200).json({ providers: withDistance });
+});
+
+const changeProviderPassword = asyncHandler(
+  async (req: Request, res: Response) => {
+    const loggedInProvider = req.user;
+
+    if (!loggedInProvider || !loggedInProvider.id) {
+      console.log("Unauthorized");
+      throw new ApiError(401, "Unauthorized");
+    }
+
+    const { oldPassword, newPassword } = req.body;
+
+    if (!oldPassword || !newPassword) {
+      console.log("Please provide old and new password");
+      throw new ApiError(400, "Please provide old and new password");
+    }
+
+    if (!loggedInProvider || !loggedInProvider.id) {
+      console.log("Unauthorized");
+      throw new ApiError(401, "Unauthorized");
+    }
+
+    const existingProvider = await db.query.serviceProvider.findFirst({
+      where: eq(serviceProvider.id, loggedInProvider.id),
+      columns: {
+        id: true,
+        name: true,
+        phoneNumber: true,
+        email: true,
+        age: true,
+        primaryAddress: true,
+        password: true,
+        isVerified: true,
+      },
+    });
+
+    if (!existingProvider) {
+      console.log("Unauthorized");
+      throw new ApiError(401, "Unauthorized");
+    }
+
+    const isPasswordValid = await bcrypt.compare(
+      oldPassword,
+      existingProvider.password
+    );
+
+    if (!isPasswordValid) {
+      console.log("Invalid credentials");
+      throw new ApiError(400, "Invalid credentials");
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    const updatedProvider = await db
+      .update(serviceProvider)
+      .set({
+        password: hashedPassword,
+      })
+      .where(eq(serviceProvider.id, loggedInProvider.id))
+      .returning({
+        id: serviceProvider.id,
+        name: serviceProvider.name,
+        phoneNumber: serviceProvider.phoneNumber,
+        email: serviceProvider.email,
+        age: serviceProvider.age,
+        primaryAddress: serviceProvider.primaryAddress,
+        isVerified: serviceProvider.isVerified,
+      });
+
+    if (!updatedProvider.length) {
+      throw new ApiError(500, "Failed to update user");
+    }
+
+    res.status(200).json(
+      new ApiResponse(200, "Password updated successfully", {
+        user: updatedProvider[0],
+      })
+    );
+  }
+);
 export {
   registerServiceProvider,
   loginServiceProvider,
@@ -717,4 +851,6 @@ export {
   getServiceProviderProfile,
   getServiceProvider,
   updateServiceProviderStatus,
+  changeProviderPassword,
+  getNearbyProviders,
 };

@@ -67,7 +67,6 @@ const getOptimalRoute = async ({
         mode,
       },
     });
-    console.log("Galli maps Response", response.data.data.data);
 
     if (response.data.success) {
       return response.data.data.data;

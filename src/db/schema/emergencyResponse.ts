@@ -31,14 +31,12 @@ export const emergencyResponse = pgTable("emergency_response", {
   ),
 
   statusUpdate: statusUpdateEnum("status_update").default("accepted"),
-
   originLocation: json("origin_location")
     .$type<{
       latitude: string;
       longitude: string;
     }>()
     .notNull(),
-
   destinationLocation: json("destination_location")
     .$type<{
       latitude: string;

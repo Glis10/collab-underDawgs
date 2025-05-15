@@ -68,5 +68,5 @@ export const newEmergencyRequestSchema = createInsertSchema(
   location: true,
 });
 
-export type TEmergencyRequest = z.infer<typeof emergencyRequestSchema>;
-export type TNewEmergencyRequest = z.infer<typeof newEmergencyRequestSchema>;
+export type IEmergencyRequest = z.infer<typeof emergencyRequestSchema>;
+export type ICreateEmergencyRequest = z.infer<typeof newEmergencyRequestSchema>;

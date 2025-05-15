@@ -2,14 +2,13 @@ import { asyncHandler } from "@/utils/api/asyncHandler";
 import { Request, Response } from "express";
 import db from "@/db";
 import ApiError from "@/utils/api/ApiError";
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { emergencyRequest, newEmergencyRequestSchema, user } from "@/db/schema";
 import ApiResponse from "@/utils/api/ApiResponse";
 
 const createEmergencyRequest = asyncHandler(
   async (req: Request, res: Response) => {
     const { emergencyType, emergencyDescription, userLocation } = req.body;
-    console.log("emergencyType", emergencyType)
     const loggedInUser = req.user;
 
     if (!loggedInUser.id) {
@@ -44,7 +43,7 @@ const createEmergencyRequest = asyncHandler(
 
     const parsedValues = newEmergencyRequestSchema.safeParse({
       userId: loggedInUser.id,
-      serviceType: emergencyType,
+      serviceType: String(emergencyType).toLowerCase(),
       description: emergencyDescription,
       location: userLocation,
     });
@@ -243,10 +242,34 @@ const deleteEmergencyRequest = asyncHandler(
   }
 );
 
+const getRecentEmergencyRequests = asyncHandler(
+  async (req: Request, res: Response) => {
+    const userId = req.user?.id;
+    console.log("userId", userId);
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized",
+      });
+    }
+
+    const recentRequests = await db.query.emergencyRequest.findMany({
+      where: eq(emergencyRequest.userId, userId),
+      orderBy: [desc(emergencyRequest.requestTime)],
+      limit: 10,
+    });
+
+    return res
+      .status(200)
+      .json(new ApiResponse(200, "Recent emergency requests", recentRequests));
+  }
+);
 export {
   createEmergencyRequest,
   getEmergencyRequest,
   getUsersEmergencyRequests,
   updateEmergencyRequest,
   deleteEmergencyRequest,
+  getRecentEmergencyRequests,
 };

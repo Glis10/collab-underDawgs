@@ -4,6 +4,7 @@ import {
   getEmergencyRequest,
   getUsersEmergencyRequests,
   updateEmergencyRequest,
+  getRecentEmergencyRequests,
 } from "@/controllers/emergency-request.controller";
 import { validateRoleAuth } from "@/middlewares/auth.middleware";
 import { Router } from "express";
@@ -15,6 +16,11 @@ emergencyRequestRouter
   .get(validateRoleAuth(["user"]), getUsersEmergencyRequests)
   .post(validateRoleAuth(["user"]), createEmergencyRequest);
 
+emergencyRequestRouter.get(
+  "/recent",
+  validateRoleAuth(["user"]),
+  getRecentEmergencyRequests
+);
 emergencyRequestRouter
   .route("/:id")
   .get(getEmergencyRequest)

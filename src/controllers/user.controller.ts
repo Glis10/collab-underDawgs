@@ -638,6 +638,33 @@ const changePassword = asyncHandler(async (req: Request, res: Response) => {
   );
 });
 
+export const updatePushToken = asyncHandler(
+  async (req: Request, res: Response) => {
+    const { pushToken } = req.body;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      throw new ApiError(401, "Unauthorized");
+    }
+
+    const updatedUser = await db
+      .update(user)
+      .set({ pushToken })
+      .where(eq(user.id, userId))
+      .returning();
+
+    if (!updatedUser) {
+      throw new ApiError(404, "User not found");
+    }
+
+    return res
+      .status(200)
+      .json(
+        new ApiResponse(200, "Push token updated successfully", updatedUser[0])
+      );
+  }
+);
+
 export {
   registerUser,
   loginUser,

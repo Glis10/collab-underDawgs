@@ -25,7 +25,8 @@ const createEmergencyResponse = asyncHandler(
       throw new ApiError(400, "Please login to perform this action");
     }
 
-    console.log("body", req.body);
+    console.log("[DEBUG] Emergency response request body:", req.body);
+    console.log("[DEBUG] Logged in user:", loggedInUser);
 
     let { emergencyRequestId, destLocation } = req.body;
 
@@ -53,20 +54,19 @@ const createEmergencyResponse = asyncHandler(
       destLocation = loggedInUser.currentLocation;
     }
 
-    if (process.env.NODE_ENV === "development") {
-      // create 2 near service providers if in development mode
-      await createNearServiceProviders(destLocation, 2);
-    }
+    console.log("[DEBUG] Using destination location:", destLocation);
 
     const emergencyRequestDetails = await db.query.emergencyRequest.findFirst({
       where: eq(emergencyRequest.id, emergencyRequestId),
     });
 
+    console.log("[DEBUG] Emergency request details:", emergencyRequestDetails);
+
     if (
       isNaN(parseFloat(destLocation.latitude)) ||
       isNaN(parseFloat(destLocation.longitude))
     ) {
-      console.error("Invalid emergency location coordinates");
+      console.error("Invalid emergency location coordinates:", destLocation);
       throw new ApiError(400, "Invalid emergency location coordinates");
     }
 
@@ -75,6 +75,8 @@ const createEmergencyResponse = asyncHandler(
       longitude: parseFloat(destLocation.longitude),
     };
 
+    console.log("[DEBUG] Parsed emergency location:", emergencyRequestLocation);
+
     const emergencyRequestType = emergencyRequestDetails?.serviceType;
 
     if (!emergencyRequestType) {
@@ -82,12 +84,15 @@ const createEmergencyResponse = asyncHandler(
       throw new ApiError(400, "Emergency request type not found");
     }
 
+    console.log("[DEBUG] Emergency request type:", emergencyRequestType);
+
     const bestServiceProvider = await getBestServiceProvider(
       emergencyRequestLocation,
       emergencyRequestType
     );
 
-    // ! This won't work on development mode as any available provider is assigned
+    console.log("[DEBUG] Best service provider found:", bestServiceProvider);
+
     if (!bestServiceProvider || !bestServiceProvider.id) {
       await db
         .delete(emergencyRequest)
@@ -98,6 +103,23 @@ const createEmergencyResponse = asyncHandler(
     }
 
     const serviceProviderId = bestServiceProvider.id;
+
+    // Update service provider's current location
+    const updatedProvider = await db
+      .update(serviceProvider)
+      .set({
+        currentLocation: {
+          latitude: emergencyRequestLocation.latitude.toString(),
+          longitude: emergencyRequestLocation.longitude.toString(),
+        },
+      })
+      .where(eq(serviceProvider.id, serviceProviderId))
+      .returning({
+        id: serviceProvider.id,
+        currentLocation: serviceProvider.currentLocation,
+      });
+
+    console.log("[DEBUG] Updated provider location:", updatedProvider);
 
     const assignedServiceProvider = await db.query.serviceProvider.findFirst({
       where: eq(serviceProvider.id, serviceProviderId),
@@ -169,16 +191,7 @@ const createEmergencyResponse = asyncHandler(
         originLocation: assignedServiceProvider.currentLocation,
         destinationLocation: emergencyRequestDetails.location,
       })
-      .returning({
-        id: emergencyResponse.id,
-        emergencyRequestId: emergencyResponse.emergencyRequestId,
-        serviceProviderId: emergencyResponse.serviceProviderId,
-
-        statusUpdate: emergencyResponse.statusUpdate,
-        assignedAt: emergencyResponse.assignedAt,
-        respondedAt: emergencyResponse.respondedAt,
-        updateDescription: emergencyResponse.updateDescription,
-      });
+      .returning();
 
     if (!newEmergencyResponse) {
       console.error("Error creating emergency response");
@@ -200,34 +213,24 @@ const createEmergencyResponse = asyncHandler(
         .where(eq(serviceProvider.id, serviceProviderId)),
     ]);
 
-    emitSocketEvent(
-      req,
-      SocketRoom.USER(loggedInUser.id),
-      SocketEventEnums.EMERGENCY_RESPONSE_CREATED,
-      {
-        emergencyResponse: newEmergencyResponse,
-        optimalPath,
-      }
-    );
-
-    emitSocketEvent(
-      req,
-      SocketRoom.PROVIDER(assignedServiceProvider.id),
-      SocketEventEnums.EMERGENCY_RESPONSE_CREATED,
-      {
-        emergencyResponse: newEmergencyResponse,
-        optimalPath,
-      }
-    );
-
     // Create notification for the service provider
     const providerNotification = await createNotification({
       serviceProviderId: assignedServiceProvider.id,
       userId: loggedInUser.id,
       message: `New emergency request assigned to you. Type: ${emergencyRequestType}`,
       type: "emergency",
+      priority: "high",
       deliveryStatus: "unread",
       source: "system",
+      metadata: {
+        emergencyType: emergencyRequestType,
+        location: emergencyRequestDetails?.location,
+        distance: optimalPath?.distance || "Calculating...",
+        userInfo: {
+          name: loggedInUser.name,
+          contact: loggedInUser.phoneNumber,
+        },
+      },
     });
 
     // Create notification for the user
@@ -236,8 +239,18 @@ const createEmergencyResponse = asyncHandler(
       userId: loggedInUser.id,
       message: `Emergency request has been assigned to ${assignedServiceProvider.name}`,
       type: "emergency",
+      priority: "high",
       deliveryStatus: "unread",
       source: "system",
+      metadata: {
+        emergencyType: emergencyRequestType,
+        responderInfo: {
+          name: assignedServiceProvider.name,
+          vehicleType: assignedServiceProvider.serviceType,
+          eta: optimalPath?.eta || "Calculating...",
+          distance: optimalPath?.distance || "Calculating...",
+        },
+      },
     });
 
     // Emit socket events for notifications
@@ -253,6 +266,26 @@ const createEmergencyResponse = asyncHandler(
       SocketRoom.USER(loggedInUser.id),
       SocketEventEnums.NOTIFICATION_CREATED,
       userNotification
+    );
+
+    emitSocketEvent(
+      req,
+      SocketRoom.USER(loggedInUser.id),
+      SocketEventEnums.EMERGENCY_RESPONSE_CREATED,
+      {
+        emergencyResponse: newEmergencyResponse[0],
+        optimalPath,
+      }
+    );
+
+    emitSocketEvent(
+      req,
+      SocketRoom.PROVIDER(assignedServiceProvider.id),
+      SocketEventEnums.EMERGENCY_RESPONSE_CREATED,
+      {
+        emergencyResponse: newEmergencyResponse[0],
+        optimalPath,
+      }
     );
 
     if (!updatedStatus) {
