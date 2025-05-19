@@ -1,12 +1,27 @@
 import db from "@/db";
 import { serviceProvider } from "@/db/schema";
-import haversine from "haversine-distance";
 import { and, eq } from "drizzle-orm";
 import { serviceTypeEnum } from "@/db/schema/enums";
 
 interface LatLng {
   latitude: number;
   longitude: number;
+}
+
+// Simple distance calculation using lat/long differences
+// Returns distance in meters
+function calculateDistance(coord1: LatLng, coord2: LatLng): number {
+  // Convert lat/long differences to meters
+  // 1 degree of latitude ≈ 111,111 meters
+  // 1 degree of longitude ≈ 111,111 * cos(latitude) meters
+  const latDiff = Math.abs(coord1.latitude - coord2.latitude) * 111111;
+  const longDiff =
+    Math.abs(coord1.longitude - coord2.longitude) *
+    111111 *
+    Math.cos((coord1.latitude * Math.PI) / 180);
+
+  // Use Pythagorean theorem to get straight-line distance
+  return Math.sqrt(latDiff * latDiff + longDiff * longDiff);
 }
 
 async function findNearbyProvider(
@@ -28,7 +43,7 @@ async function findNearbyProvider(
   });
 
   console.log(
-    "[DEBUG] Found available providers:",
+    "[DEBUG] Found available providers matching type & status:",
     allAvailableProviders.length
   );
   console.log(
@@ -43,49 +58,47 @@ async function findNearbyProvider(
   );
 
   const nearbyProviders = allAvailableProviders.filter((provider) => {
-    if (!provider.currentLocation) {
-      console.log("[DEBUG] Provider has no location:", provider.id);
-      return false;
-    }
+    const loc = provider.currentLocation;
 
-    if (
-      !provider.currentLocation.latitude ||
-      !provider.currentLocation.longitude
-    ) {
-      console.log("[DEBUG] Provider has invalid location:", {
+    if (!loc || !loc.latitude || !loc.longitude) {
+      console.log("[DEBUG] Provider has invalid or missing location:", {
         id: provider.id,
-        location: provider.currentLocation,
+        location: loc,
       });
       return false;
     }
 
     const providerLocation: LatLng = {
-      latitude: parseFloat(provider.currentLocation.latitude),
-      longitude: parseFloat(provider.currentLocation.longitude),
+      latitude: parseFloat(loc.latitude),
+      longitude: parseFloat(loc.longitude),
     };
 
-    const distance = haversine(userLocation, providerLocation);
+    const distance = calculateDistance(userLocation, providerLocation);
+
+    const isWithinRange = distance <= maxDistance;
     console.log("[DEBUG] Provider distance:", {
       id: provider.id,
       distance,
       maxDistance,
-      isWithinRange: distance <= maxDistance,
+      isWithinRange,
     });
-    return distance <= maxDistance;
+
+    return isWithinRange;
   });
 
   console.log("[DEBUG] Found nearby providers:", nearbyProviders.length);
 
   nearbyProviders.sort((a, b) => {
-    const distA = haversine(userLocation, {
-      latitude: parseFloat(a.currentLocation?.latitude || "0"),
-      longitude: parseFloat(a.currentLocation?.longitude || "0"),
+    const distA = calculateDistance(userLocation, {
+      latitude: parseFloat(a.currentLocation?.latitude ?? "0"),
+      longitude: parseFloat(a.currentLocation?.longitude ?? "0"),
     });
 
-    const distB = haversine(userLocation, {
-      latitude: parseFloat(b.currentLocation?.latitude || "0"),
-      longitude: parseFloat(b.currentLocation?.longitude || "0"),
+    const distB = calculateDistance(userLocation, {
+      latitude: parseFloat(b.currentLocation?.latitude ?? "0"),
+      longitude: parseFloat(b.currentLocation?.longitude ?? "0"),
     });
+
     return distA - distB;
   });
 
@@ -101,7 +114,8 @@ async function getBestServiceProvider(
     serviceType,
   });
 
-  const radii = [500, 1000, 2000, 5000, 10000];
+  // Using smaller radii since we're using a simpler distance calculation
+  const radii = [200, 500, 1000, 2000, 5000];
 
   for (const radius of radii) {
     console.log(`[DEBUG] Searching within ${radius}m radius`);
@@ -111,35 +125,32 @@ async function getBestServiceProvider(
       serviceType
     );
     if (candidates.length > 0) {
+      const best = candidates[0];
       console.log("[DEBUG] Found provider within radius:", {
         radius,
         provider: {
-          id: candidates[0].id,
-          name: candidates[0].name,
-          location: candidates[0].currentLocation,
+          id: best.id,
+          name: best.name,
+          location: best.currentLocation,
         },
       });
-      return candidates[0];
+      return best;
     }
   }
 
-  // If no nearby providers found, get any available provider in development mode
+  // Optional fallback
   if (process.env.NODE_ENV === "development") {
-    console.log(
-      "[DEBUG] No providers found in radius, checking for any available provider"
-    );
-    const anyAvailableProvider = await db.query.serviceProvider.findFirst({
+    const fallbackProvider = await db.query.serviceProvider.findFirst({
       where: and(
         eq(serviceProvider.serviceStatus, "available"),
         eq(serviceProvider.serviceType, serviceType)
       ),
     });
-
-    console.log("[DEBUG] Any available provider:", anyAvailableProvider);
-    return anyAvailableProvider;
+    console.log("[DEBUG] Fallback provider:", fallbackProvider);
+    return fallbackProvider;
   }
 
-  console.log("[DEBUG] No providers found");
+  console.log("[DEBUG] No providers found within all defined radii.");
   return null;
 }
 

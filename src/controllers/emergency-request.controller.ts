@@ -12,17 +12,17 @@ const createEmergencyRequest = asyncHandler(
     const loggedInUser = req.user;
 
     if (!loggedInUser.id) {
-      console.error("User ID is required");
+      console.log("User ID is required");
       throw new ApiError(400, "User ID is required");
     }
 
     if (!userLocation) {
-      console.error("user location required");
+      console.log("user location required");
       throw new ApiError(400, "user location required");
     }
 
     if (!userLocation.latitude || !userLocation.longitude) {
-      console.error("Emergency location coordinates are required");
+      console.log("Emergency location coordinates are required");
       throw new ApiError(400, "Emergency location coordinates are required");
     }
 
@@ -30,7 +30,7 @@ const createEmergencyRequest = asyncHandler(
       isNaN(parseFloat(userLocation.latitude)) ||
       isNaN(parseFloat(userLocation.longitude))
     ) {
-      console.error("Invalid emergency location coordinates");
+      console.log("Invalid emergency location coordinates");
       throw new ApiError(400, "Invalid emergency location coordinates");
     }
 
@@ -49,7 +49,7 @@ const createEmergencyRequest = asyncHandler(
     });
 
     if (!parsedValues.success) {
-      console.error("Parsing Error: ", parsedValues.error.errors);
+      console.log("Parsing Error: ", parsedValues.error.errors);
       throw new ApiError(400, parsedValues.error.errors.join(","));
     }
 
@@ -67,7 +67,7 @@ const createEmergencyRequest = asyncHandler(
       });
 
     if (!newEmergencyRequest) {
-      console.error("Error creating emergency request");
+      console.log("Error creating emergency request");
       throw new ApiError(500, "Error creating emergency request");
     }
 
@@ -100,7 +100,7 @@ const getUsersEmergencyRequests = asyncHandler(
     const loggedInUser = req.user;
 
     if (!loggedInUser || !loggedInUser.id) {
-      console.error("User ID is required");
+      console.log("User ID is required");
       throw new ApiError(400, "User ID is required");
     }
 
@@ -122,14 +122,14 @@ const updateEmergencyRequest = asyncHandler(
     const { status } = req.body;
 
     if (!id) {
-      console.error("Emergency request ID is required");
+      console.log("Emergency request ID is required");
       throw new ApiError(400, "Emergency request ID is required");
     }
 
     const updateData = req.body;
 
     if (Object.keys(updateData).length === 0) {
-      console.error("No data to update");
+      console.log("No data to update");
       throw new ApiError(400, "No data to update");
     }
 
@@ -138,7 +138,7 @@ const updateEmergencyRequest = asyncHandler(
     );
 
     if (invalidKeys.length > 0) {
-      console.error(`Invalid data to update. Invalid keys: ${invalidKeys}`);
+      console.log(`Invalid data to update. Invalid keys: ${invalidKeys}`);
       throw new ApiError(
         400,
         `Invalid data to update. Invalid keys: ${invalidKeys}`
@@ -150,7 +150,7 @@ const updateEmergencyRequest = asyncHandler(
     });
 
     if (!existingEmergencyRequest) {
-      console.error("Emergency request not found");
+      console.log("Emergency request not found");
       throw new ApiError(404, "Emergency request not found");
     }
 
@@ -168,7 +168,7 @@ const updateEmergencyRequest = asyncHandler(
       });
 
     if (!updatedEmergencyRequest) {
-      console.error("Error updating emergency request");
+      console.log("Error updating emergency request");
       throw new ApiError(500, "Error updating emergency request");
     }
 
@@ -190,17 +190,17 @@ const deleteEmergencyRequest = asyncHandler(
     const loggedInUser = req.user;
 
     if (!loggedInUser || !loggedInUser.id) {
-      console.error("User ID is required");
+      console.log("User ID is required");
       throw new ApiError(400, "User ID is required");
     }
 
     if (!loggedInUser.role) {
-      console.error("User role is required");
+      console.log("User role is required");
       throw new ApiError(400, "User role is required");
     }
 
     if (!id) {
-      console.error("Emergency request ID is required");
+      console.log("Emergency request ID is required");
       throw new ApiError(400, "Emergency request ID is required");
     }
 
@@ -209,7 +209,7 @@ const deleteEmergencyRequest = asyncHandler(
     });
 
     if (!existingEmergencyRequest) {
-      console.error("Emergency request not found");
+      console.log("Emergency request not found");
       throw new ApiError(404, "Emergency request not found");
     }
 
@@ -226,7 +226,7 @@ const deleteEmergencyRequest = asyncHandler(
       });
 
     if (!deletedEmergencyRequest) {
-      console.error("Error deleting emergency request");
+      console.log("Error deleting emergency request");
       throw new ApiError(500, "Error deleting emergency request");
     }
 
@@ -265,6 +265,7 @@ const getRecentEmergencyRequests = asyncHandler(
       .json(new ApiResponse(200, "Recent emergency requests", recentRequests));
   }
 );
+
 export {
   createEmergencyRequest,
   getEmergencyRequest,

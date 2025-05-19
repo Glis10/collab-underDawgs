@@ -16,7 +16,6 @@ import ApiResponse from "@/utils/api/ApiResponse";
 const app = express();
 const port = envConfig.port;
 
-
 // middlewares
 app.use(cors(corsOptions));
 app.use(express.json({ limit: "50mb" }));
@@ -26,7 +25,7 @@ app.use(cookieParser());
 // V1 API routes
 app.use("/api/v1", v1Router);
 
-// 404 handler for undefined routes 
+// 404 handler for undefined routes
 app.use((req: Request, res: Response) => {
   res
     .status(404)
@@ -49,7 +48,7 @@ function startServer() {
       console.log(`Server is listening on: ${port}`);
     });
   } catch (error) {
-    console.error("Error starting server", error);
+    console.log("Error starting server", error);
   }
 }
 

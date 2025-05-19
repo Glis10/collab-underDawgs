@@ -101,7 +101,7 @@ const createNotification = async (
             const ticketChunk = await expo.sendPushNotificationsAsync(chunk);
             tickets.push(...ticketChunk);
           } catch (error) {
-            console.error("Error sending push notification chunk:", error);
+            console.log("Error sending push notification chunk:", error);
           }
         }
 
@@ -113,7 +113,7 @@ const createNotification = async (
             .where(eq(notifications.id, inserted[0].id));
         }
       } catch (error) {
-        console.error("Error sending push notification:", error);
+        console.log("Error sending push notification:", error);
       }
     }
 
@@ -133,7 +133,7 @@ const createNotification = async (
 
     return inserted[0];
   } catch (error) {
-    console.error("Error in createNotification:", error);
+    console.log("Error in createNotification:", error);
     throw new Error("Notification creation failed");
   }
 };

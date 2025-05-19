@@ -27,7 +27,7 @@ const registerServiceProvider = asyncHandler(
     const parsedValues = newServiceProviderSchema.safeParse(req.body);
 
     if (!parsedValues.success) {
-      console.error("Parsing Error: ", parsedValues.error.errors);
+      console.log("Parsing Error: ", parsedValues.error.errors);
       const validationError = new ApiError(
         400,
         "Error validating data",
@@ -108,7 +108,7 @@ const loginServiceProvider = asyncHandler(
     const parsedValues = loginServiceProviderSchema.safeParse(req.body);
 
     if (!parsedValues.success) {
-      console.error("Parsing Error: ", parsedValues.error.errors);
+      console.log("Parsing Error: ", parsedValues.error.errors);
       const validationError = new ApiError(
         400,
         "Error validating data",
@@ -119,6 +119,8 @@ const loginServiceProvider = asyncHandler(
 
       return res.status(400).json(validationError);
     }
+
+    console.log("Login data", parsedValues.data);
 
     if (!parsedValues.data.phoneNumber) {
       throw new ApiError(400, "Phone number is required");
@@ -574,6 +576,15 @@ const updateServiceProviderStatus = asyncHandler(
       })
       .where(eq(serviceProvider.id, loggedInUser.id))
       .returning();
+
+    emitSocketEvent(
+      req,
+      SocketRoom.PROVIDER(updatedProvider[0].id),
+      SocketEventEnums.PROVIDER_STATUS_UPDATED,
+      {
+        status: updatedProvider[0].serviceStatus,
+      }
+    );
 
     if (!updatedProvider || updatedProvider.length === 0) {
       throw new ApiError(404, "Service provider not found");

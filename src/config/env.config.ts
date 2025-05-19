@@ -20,7 +20,7 @@ function createEnvConfig() {
   const parsedEnv = envSchema.safeParse(process.env);
 
   if (!parsedEnv.success) {
-    console.error("❌ Invalid environment variables", parsedEnv.error.format());
+    console.log("❌ Invalid environment variables", parsedEnv.error.format());
     throw new Error("Invalid environment variables");
   }
 

@@ -59,12 +59,12 @@ const mountSendLocationEvent = (socket: SocketUser) => {
     async ({ emergencyResponseId, location }: LocationUpdatePayload) => {
       try {
         if (!socket.user?.id) {
-          console.error("No user ID found in socket");
+          console.log("No user ID found in socket");
           return;
         }
 
         if (!location || !location.latitude || !location.longitude) {
-          console.error("Invalid location data");
+          console.log("Invalid location data");
           return;
         }
 
@@ -80,26 +80,26 @@ const mountSendLocationEvent = (socket: SocketUser) => {
         });
 
         // Update provider's location in database
-        const updated = await db
-          .update(serviceProvider)
-          .set({ currentLocation: locationString })
-          .where(eq(serviceProvider.id, socket.user?.id))
-          .returning({
-            id: serviceProvider.id,
-            name: serviceProvider.name,
-            currentLocation: serviceProvider.currentLocation,
-            serviceStatus: serviceProvider.serviceStatus,
-          });
+        // const updated = await db
+        //   .update(serviceProvider)
+        //   .set({ currentLocation: locationString })
+        //   .where(eq(serviceProvider.id, socket.user?.id))
+        //   .returning({
+        //     id: serviceProvider.id,
+        //     name: serviceProvider.name,
+        //     currentLocation: serviceProvider.currentLocation,
+        //     serviceStatus: serviceProvider.serviceStatus,
+        //   });
 
-        if (updated.length === 0) {
-          console.error("Failed to update provider location");
-          return;
-        }
+        // if (updated.length === 0) {
+        //   console.log("Failed to update provider location");
+        //   return;
+        // }
 
-        console.log(
-          "[DEBUG] Provider location updated successfully:",
-          updated[0]
-        );
+        // console.log(
+        //   "[DEBUG] Provider location updated successfully:",
+        //   updated[0]
+        // );
 
         // Broadcast location update to all users in the emergency room
         socket
@@ -112,7 +112,7 @@ const mountSendLocationEvent = (socket: SocketUser) => {
 
         console.log(`[SOCKET] Location sent from ${socket.user?.id}`);
       } catch (error) {
-        console.error("[SOCKET] Error in location update:", error);
+        console.log("[SOCKET] Error in location update:", error);
         socket.emit(SocketEventEnums.SOCKET_ERROR, {
           message: "Failed to update location",
           error: error instanceof Error ? error.message : "Unknown error",
@@ -130,12 +130,12 @@ const mountUserLocationEvent = (socket: SocketUser) => {
         console.log("USER IN SOCKET", socket.user);
 
         if (!socket.user?.id) {
-          console.error("No user ID found in socket");
+          console.log("No user ID found in socket");
           return;
         }
 
         if (!location || !location.latitude || !location.longitude) {
-          console.error("Invalid user location data");
+          console.log("Invalid user location data");
           return;
         }
 
@@ -159,7 +159,7 @@ const mountUserLocationEvent = (socket: SocketUser) => {
             });
 
           if (updated.length === 0) {
-            console.error("Failed to update user location");
+            console.log("Failed to update user location");
             return;
           }
         }
@@ -175,7 +175,7 @@ const mountUserLocationEvent = (socket: SocketUser) => {
 
         console.log(`[SOCKET] User location sent from ${socket.user?.id}`);
       } catch (error) {
-        console.error("[SOCKET] Error in user location update:", error);
+        console.log("[SOCKET] Error in user location update:", error);
         socket.emit(SocketEventEnums.SOCKET_ERROR, {
           message: "Failed to update user location",
           error: error instanceof Error ? error.message : "Unknown error",
@@ -215,7 +215,7 @@ const mountRequestEmergencyServiceEvent = (socket: SocketUser) => {
     }) => {
       try {
         if (!socket.user?.id) {
-          console.error("No user ID found in socket");
+          console.log("No user ID found in socket");
           return;
         }
 
@@ -234,9 +234,8 @@ const mountRequestEmergencyServiceEvent = (socket: SocketUser) => {
           },
         });
 
-        // Calculate distances and sort providers
         const providersWithDistance: ServiceProviderWithDistance[] = providers
-          .filter((provider) => provider.currentLocation) // Filter out providers without location
+          .filter((provider) => provider.currentLocation)
           .map((provider) => ({
             ...provider,
             distance: calculateDistance(
@@ -246,7 +245,6 @@ const mountRequestEmergencyServiceEvent = (socket: SocketUser) => {
           }))
           .sort((a, b) => a.distance - b.distance);
 
-        // Emit the sorted list of providers
         socket.emit(SocketEventEnums.PROVIDER_FOUND, {
           providers: providersWithDistance,
         });
@@ -255,7 +253,7 @@ const mountRequestEmergencyServiceEvent = (socket: SocketUser) => {
           `[SOCKET] Found ${providersWithDistance.length} available providers for ${serviceType}`
         );
       } catch (error) {
-        console.error("[SOCKET] Error in emergency service request:", error);
+        console.log("[SOCKET] Error in emergency service request:", error);
         socket.emit(SocketEventEnums.SOCKET_ERROR, {
           message: "Failed to find service providers",
           error: error instanceof Error ? error.message : "Unknown error",
@@ -275,7 +273,7 @@ const mountUpdateProviderStatusEvent = (socket: SocketUser) => {
     }) => {
       try {
         if (!socket.user?.id) {
-          console.error("No user ID found in socket");
+          console.log("No user ID found in socket");
           return;
         }
 
@@ -290,7 +288,7 @@ const mountUpdateProviderStatusEvent = (socket: SocketUser) => {
           });
 
         if (updated.length === 0) {
-          console.error("Failed to update provider status");
+          console.log("Failed to update provider status");
           return;
         }
 
@@ -304,7 +302,7 @@ const mountUpdateProviderStatusEvent = (socket: SocketUser) => {
           `[SOCKET] Provider ${socket.user.id} status updated to ${status}`
         );
       } catch (error) {
-        console.error("[SOCKET] Error in provider status update:", error);
+        console.log("[SOCKET] Error in provider status update:", error);
         socket.emit(SocketEventEnums.SOCKET_ERROR, {
           message: "Failed to update provider status",
           error: error instanceof Error ? error.message : "Unknown error",
@@ -389,7 +387,7 @@ const handleSocketConnection = async (socket: SocketUser) => {
       }
     });
   } catch (error) {
-    console.error("[SOCKET]: Error authenticating user", error);
+    console.log("[SOCKET]: Error authenticating user", error);
     socket.emit(
       SocketEventEnums.SOCKET_ERROR,
       error instanceof Error
@@ -409,6 +407,7 @@ const emitSocketEvent = (
   event: SocketEventEnums,
   payload: any
 ) => {
+  console.log("[SOCKET] Emitting event:", event, roomId);
   req.app.get("io").in(roomId).emit(event, payload);
 };
 

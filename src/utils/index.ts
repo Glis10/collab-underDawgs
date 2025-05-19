@@ -68,7 +68,7 @@ export const createServiceProvider = async (location: LatLng) => {
 
     return createdServiceProvider;
   } catch (error) {
-    console.error("Error creating service provider:", error);
+    console.log("Error creating service provider:", error);
     throw error;
   }
 };

@@ -90,7 +90,6 @@ const registerUser = asyncHandler(async (req: Request, res: Response) => {
 });
 
 const loginUser = asyncHandler(async (req: Request, res: Response) => {
-  console.log("Hello world");
   const { phoneNumber, email, password } = req.body;
   console.log(req.body);
 
@@ -443,7 +442,7 @@ const forgotPassword = asyncHandler(async (req: Request, res: Response) => {
     throw new ApiError(404, "User not found with given email or phone");
   }
 
-  const otpToken = await sendOTP(String(existingUser.phoneNumber));
+  const otpToken = await sendOTP(String(existingUser.email));
 
   if (!otpToken) {
     console.log("Error Sending OTP token. Please try again");

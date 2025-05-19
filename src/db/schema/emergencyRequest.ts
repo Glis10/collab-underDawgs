@@ -21,6 +21,7 @@ export const requestStatusEnum = pgEnum("request_status", [
   "assigned",
   "rejected",
   "in_progress",
+  "completed",
 ]);
 
 export const emergencyRequest = pgTable("emergency_request", {

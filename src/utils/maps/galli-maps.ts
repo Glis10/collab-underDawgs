@@ -57,6 +57,14 @@ const getOptimalRoute = async ({
   mode = "DRIVING",
 }: IRoutingProps) => {
   try {
+    console.log(
+      "srcLat, srcLng, dstLat, dstLng",
+      srcLat,
+      srcLng,
+      dstLat,
+      dstLng
+    );
+
     const response = await axios.get(`${BASE_API}/routing`, {
       params: {
         accessToken: MAPS_ACCESS_TOKEN,
@@ -79,4 +87,28 @@ const getOptimalRoute = async ({
   }
 };
 
-export { compeletAutoSearch, getOptimalRoute };
+const reverseGeoCode = async (lat: string, lng: string) => {
+  console.log("lat, lng", lat, lng);
+
+  try {
+    const response = await axios.get(`${BASE_API}/reverse/generalReverse`, {
+      params: {
+        accessToken: MAPS_ACCESS_TOKEN,
+        lat,
+        lng,
+      },
+    });
+
+    if (response.data.success) {
+      console.log("location", response.data.data);
+
+      return response.data.data;
+    }
+
+    return null;
+  } catch (error) {
+    console.log("Error while fetching maps data", error);
+    return null;
+  }
+};
+export { compeletAutoSearch, getOptimalRoute, reverseGeoCode };

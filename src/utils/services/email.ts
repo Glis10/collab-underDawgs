@@ -61,7 +61,7 @@ export const sendOTPEmail = async (
     console.log("Email sent:", info.messageId, info);
     return true;
   } catch (error) {
-    console.error("Error sending email:", error);
+    console.log("Error sending email:", error);
     return false;
   }
 };
