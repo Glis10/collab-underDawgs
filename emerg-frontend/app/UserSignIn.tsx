@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { View, Text, TextInput, StyleSheet, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useFonts, MontaguSlab_400Regular } from '@expo-google-fonts/montagu-slab';
 import { useRouter } from 'expo-router'; // <-- The new way!
 
 export default function UserSignInScreen() {
@@ -10,14 +9,6 @@ export default function UserSignInScreen() {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-
-  let [fontsLoaded] = useFonts({
-    MontaguSlab_400Regular,
-  });
-
-  if (!fontsLoaded) {
-    return null;
-  }
 
   return (
     <SafeAreaView style={styles.container} edges={['left', 'right', 'bottom']}>
@@ -152,7 +143,7 @@ const styles = StyleSheet.create({
       fontSize: 42,
       fontWeight: '400',
       color: '#1a365d',
-      fontFamily: 'MontaguSlab_400Regular',
+      fontFamily: 'serif',
     },
     subtitle: {
       fontSize: 14,

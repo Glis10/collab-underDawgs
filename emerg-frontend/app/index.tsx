@@ -22,7 +22,7 @@ export default function LandingScreen() {
         
         <View style={styles.spacer} />
 
-        <Text style={styles.subtitle}>continue as user or admin</Text>
+        <Text style={styles.subtitle}>Continue as User or Admin</Text>
         
         <TouchableOpacity 
           style={styles.primaryButton}
@@ -48,7 +48,6 @@ export default function LandingScreen() {
 }
 
 const styles = StyleSheet.create({
-  // ... (Paste your identical styles here)
   container: {
     flex: 1,
     backgroundColor: '#FFFFFF',
@@ -82,7 +81,8 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#718096',
     marginBottom: 24,
-    textTransform: 'lowercase',
+    fontWeight: 'bold',
+    fontFamily: 'System', // or your loaded custom font
   },
   primaryButton: {
     backgroundColor: '#E63946',
