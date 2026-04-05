@@ -59,7 +59,7 @@ export default function ForgotPasswordScreen() {
               />
             </View>
 
-            <TouchableOpacity style={styles.button}>
+            <TouchableOpacity style={styles.button} onPress={() => router.push('/OtpVerification')}>
               <Text style={styles.buttonText}>Send OTP</Text>
             </TouchableOpacity>
 
