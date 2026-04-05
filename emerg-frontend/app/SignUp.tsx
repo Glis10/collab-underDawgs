@@ -140,20 +140,24 @@ export default function SignUpScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* <TouchableOpacity
-            style={styles.checkboxContainer}
-            onPress={() => setAgreeToTerms(!agreeToTerms)}
-          >
-            <MaterialCommunityIcons
-              name={agreeToTerms ? "checkbox-marked" : "checkbox-blank-outline"}
-              size={24}
-              color={agreeToTerms ? "#E63946" : "#A0AEC0"}
-            /> */}
-            {/* <Text style={styles.checkboxText}>I agree to the </Text>
-            <TouchableOpacity onPress={() => router.push('/terms')}>
+          <View style={styles.checkboxContainer}>
+            <TouchableOpacity
+              onPress={() => setAgreeToTerms(!agreeToTerms)}
+              style={styles.checkboxButton}
+            >
+              <MaterialCommunityIcons
+                name={agreeToTerms ? "checkbox-marked" : "checkbox-blank-outline"}
+                size={26}
+                color={agreeToTerms ? "#E63946" : "#A0AEC0"}
+              />
+            </TouchableOpacity>
+
+            <Text style={styles.checkboxText}>I agree to the </Text>
+
+            <TouchableOpacity onPress={() => router.push('/Terms')}>
               <Text style={styles.termsLink}>Terms and Conditions</Text>
             </TouchableOpacity>
-          </TouchableOpacity> */}
+          </View>
 
           <TouchableOpacity style={styles.button}>
             <Text style={styles.buttonText}>Sign Up</Text>
@@ -240,8 +244,10 @@ const styles = StyleSheet.create({
     marginTop: 16,
     marginBottom: 24,
   },
+  checkboxButton: {
+    marginRight: 8,
+  },
   checkboxText: {
-    marginLeft: 8,
     color: '#4A5568',
     fontSize: 14,
   },
