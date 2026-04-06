@@ -65,8 +65,8 @@ style/fix-linting
 
 ## Code Style
 
-- Use TypeScript for all new code
-- Follow ESLint rules
+- Use JavaScript (CommonJS modules in `src/`)
+- Follow ESLint rules when configured
 - Use Prettier for formatting
 - Write meaningful commit messages
 - Add comments for complex logic
@@ -83,7 +83,7 @@ style/fix-linting
 - Update README.md for significant changes
 - Add comments for complex code
 - Document API changes
-- Update TypeScript types
+- Update API docs or comments when behavior changes
 
 ## Review Process
 
