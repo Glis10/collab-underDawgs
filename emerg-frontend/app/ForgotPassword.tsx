@@ -81,13 +81,13 @@ export default function ForgotPasswordScreen() {
               />
             </View>
 
-            <TouchableOpacity style={[styles.button, isSubmitting && styles.buttonDisabled]} onPress={handleForgotPassword} disabled={isSubmitting}>
-              {isSubmitting ? (
-                <ActivityIndicator color="#FFFFFF" />
-              ) : (
-                <Text style={styles.buttonText}>Send OTP</Text>
-              )}
-            </TouchableOpacity>
+<TouchableOpacity 
+  style={styles.button} 
+  onPress={() => router.push('/OtpVerification')}
+>
+  <Text style={styles.buttonText}>Send OTP</Text>
+</TouchableOpacity>
+           
 
             <TouchableOpacity style={styles.backLinkContainer} onPress={() => router.back()}>
               <Text style={styles.backLinkText}>Back to Login</Text>
