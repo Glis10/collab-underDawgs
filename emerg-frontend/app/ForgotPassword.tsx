@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import {
+  ActivityIndicator,
+  Alert,
   Image,
   KeyboardAvoidingView,
   Platform,
@@ -13,10 +15,30 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { forgotPassword } from '@/src/lib/auth';
 
 export default function ForgotPasswordScreen() {
   const router = useRouter();
   const [email, setEmail] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleForgotPassword = async () => {
+    if (!email.trim()) {
+      Alert.alert('Missing email', 'Please enter your linked email address.');
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      await forgotPassword(email.trim());
+      Alert.alert('OTP sent', 'Password reset OTP has been sent to your email.');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to send OTP right now.';
+      Alert.alert('Request failed', message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <SafeAreaView style={styles.container} edges={['left', 'right', 'bottom']}>
@@ -59,8 +81,12 @@ export default function ForgotPasswordScreen() {
               />
             </View>
 
-            <TouchableOpacity style={styles.button}>
-              <Text style={styles.buttonText}>Send OTP</Text>
+            <TouchableOpacity style={[styles.button, isSubmitting && styles.buttonDisabled]} onPress={handleForgotPassword} disabled={isSubmitting}>
+              {isSubmitting ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <Text style={styles.buttonText}>Send OTP</Text>
+              )}
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.backLinkContainer} onPress={() => router.back()}>
@@ -164,6 +190,9 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
     marginBottom: 24,
+  },
+  buttonDisabled: {
+    opacity: 0.7,
   },
   buttonText: {
     color: '#FFFFFF',
