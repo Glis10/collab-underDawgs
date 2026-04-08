@@ -1,15 +1,19 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, StyleSheet, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView, Image } from 'react-native';
+import { View, Text, TextInput, StyleSheet, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView, Image, Alert, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFonts, MontaguSlab_400Regular } from '@expo-google-fonts/montagu-slab';
-import { useRouter } from 'expo-router'; // <-- The new way!
+import { Href, useRouter } from 'expo-router'; // <-- The new way!
+import { loginUser } from '@/src/lib/auth';
+
+const dashboardRoute = '/dashboard' as Href;
 
 export default function UserSignInScreen() {
   const router = useRouter(); // <-- Declare the router
   const [phoneNumber, setPhoneNumber] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   let [fontsLoaded] = useFonts({
     MontaguSlab_400Regular,
@@ -18,6 +22,28 @@ export default function UserSignInScreen() {
   if (!fontsLoaded) {
     return null;
   }
+
+  const handleSignIn = async () => {
+    if (!phoneNumber.trim() || !password.trim()) {
+      Alert.alert('Missing fields', 'Please enter your phone number and password.');
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      await loginUser({
+        phoneNumber: phoneNumber.trim(),
+        password,
+      });
+
+      router.replace(dashboardRoute);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to sign in right now.';
+      Alert.alert('Sign in failed', message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <SafeAreaView style={styles.container} edges={['left', 'right', 'bottom']}>
@@ -88,12 +114,16 @@ export default function UserSignInScreen() {
               </TouchableOpacity>
             </View>
 
-            <TouchableOpacity style={styles.button}>
-              <Text style={styles.buttonText}>Sign In</Text>
+            <TouchableOpacity style={[styles.button, isSubmitting && styles.buttonDisabled]} onPress={handleSignIn} disabled={isSubmitting}>
+              {isSubmitting ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <Text style={styles.buttonText}>Sign In</Text>
+              )}
             </TouchableOpacity>
 
             <View style={styles.footerContainer}>
-              <Text style={styles.footerText}>Don't have an account? </Text>
+              <Text style={styles.footerText}>{"Don't have an account? "}</Text>
               <TouchableOpacity onPress={() => router.push('/SignUp')}>
                 <Text style={styles.footerLink}>Sign Up</Text>
               </TouchableOpacity>
@@ -213,6 +243,9 @@ const styles = StyleSheet.create({
       borderRadius: 12,
       alignItems: 'center',
       marginBottom: 24,
+    },
+    buttonDisabled: {
+      opacity: 0.7,
     },
     buttonText: {
       color: '#FFFFFF',
