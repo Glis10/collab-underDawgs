@@ -171,12 +171,16 @@ const styles = StyleSheet.create({
       marginBottom: 40,
     },
     logo: {
-      width: 200,
+      width: '70%',
+      maxWidth: 200,
       height: 60,
     },
     titleContainer: {
       alignItems: 'center',
       marginBottom: 20,
+      width: '100%',
+      maxWidth: 420,
+      alignSelf: 'center',
     },
     title: {
       fontSize: 42,
@@ -192,14 +196,20 @@ const styles = StyleSheet.create({
     switchContainer: {
       alignItems: 'center',
       marginBottom: 30,
+      width: '100%',
+      maxWidth: 420,
+      alignSelf: 'center',
     },
     switchText: {
       color: '#E63946',
       fontWeight: '600',
       fontSize: 14,
+      textAlign: 'center',
     },
     formContainer: {
       width: '100%',
+      maxWidth: 420,
+      alignSelf: 'center',
     },
     label: {
       fontSize: 14,
@@ -255,14 +265,17 @@ const styles = StyleSheet.create({
     footerContainer: {
       flexDirection: 'row',
       justifyContent: 'center',
+      flexWrap: 'wrap',
     },
     footerText: {
       color: '#718096',
       fontSize: 14,
+      textAlign: 'center',
     },
     footerLink: {
       color: '#E63946',
       fontSize: 14,
       fontWeight: '600',
+      textAlign: 'center',
     },
   });

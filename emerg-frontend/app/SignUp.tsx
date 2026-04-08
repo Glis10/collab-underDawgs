@@ -237,6 +237,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 24,
     paddingVertical: 16,
+    width: '100%',
+    maxWidth: 480,
+    alignSelf: 'center',
   },
   backButton: {
     padding: 4,
@@ -245,11 +248,17 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#718096',
     fontWeight: '500',
+    flex: 1,
+    textAlign: 'center',
+    paddingHorizontal: 12,
   },
   scrollContent: {
     flexGrow: 1,
     paddingHorizontal: 24,
     paddingBottom: 40,
+    width: '100%',
+    maxWidth: 480,
+    alignSelf: 'center',
   },
   label: {
     fontSize: 14,
@@ -292,6 +301,7 @@ const styles = StyleSheet.create({
   checkboxContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+    flexWrap: 'wrap',
     marginTop: 16,
     marginBottom: 24,
   },
@@ -325,14 +335,17 @@ const styles = StyleSheet.create({
   footerContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
+    flexWrap: 'wrap',
   },
   footerText: {
     color: '#718096',
     fontSize: 14,
+    textAlign: 'center',
   },
   footerLink: {
     color: '#E63946',
     fontSize: 14,
     fontWeight: '600',
+    textAlign: 'center',
   },
 });

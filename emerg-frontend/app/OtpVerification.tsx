@@ -171,12 +171,16 @@ const styles = StyleSheet.create({
     marginBottom: 40,
   },
   logo: {
-    width: 200,
+    width: '70%',
+    maxWidth: 200,
     height: 60,
   },
   titleContainer: {
     alignItems: 'center',
     marginBottom: 32,
+    width: '100%',
+    maxWidth: 420,
+    alignSelf: 'center',
   },
   title: {
     fontSize: 36,
@@ -193,6 +197,8 @@ const styles = StyleSheet.create({
   },
   formContainer: {
     width: '100%',
+    maxWidth: 420,
+    alignSelf: 'center',
   },
   label: {
     fontSize: 14,
@@ -202,11 +208,15 @@ const styles = StyleSheet.create({
   },
   otpContainer: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
     marginBottom: 32,
   },
   otpInput: {
-    width: 48,
+    width: '14%',
+    minWidth: 44,
+    maxWidth: 52,
     height: 56,
     borderRadius: 12,
     backgroundColor: '#F7FAFC',
@@ -234,6 +244,7 @@ const styles = StyleSheet.create({
     color: '#E63946',
     fontSize: 14,
     fontWeight: '600',
+    textAlign: 'center',
   },
   backLinkContainer: {
     alignItems: 'center',

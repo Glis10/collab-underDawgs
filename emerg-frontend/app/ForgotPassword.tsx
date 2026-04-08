@@ -138,12 +138,16 @@ const styles = StyleSheet.create({
     marginBottom: 40,
   },
   logo: {
-    width: 200,
+    width: '70%',
+    maxWidth: 200,
     height: 60,
   },
   titleContainer: {
     alignItems: 'center',
     marginBottom: 32,
+    width: '100%',
+    maxWidth: 420,
+    alignSelf: 'center',
   },
   title: {
     fontSize: 36,
@@ -159,6 +163,8 @@ const styles = StyleSheet.create({
   },
   formContainer: {
     width: '100%',
+    maxWidth: 420,
+    alignSelf: 'center',
   },
   label: {
     fontSize: 14,
