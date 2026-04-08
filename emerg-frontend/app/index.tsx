@@ -67,15 +67,20 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     paddingHorizontal: 24,
+    paddingVertical: 32,
     justifyContent: 'center',
     alignItems: 'center',
+    width: '100%',
+    maxWidth: 420,
+    alignSelf: 'center',
   },
   logo: {
-    width: 200,
+    width: '70%',
+    maxWidth: 200,
     height: 60,
   },
   spacer: {
-    height: 100,
+    height: 64,
   },
   subtitle: {
     fontSize: 14,
@@ -83,6 +88,7 @@ const styles = StyleSheet.create({
     marginBottom: 24,
     fontWeight: 'bold',
     fontFamily: 'System', // or your loaded custom font
+    textAlign: 'center',
   },
   primaryButton: {
     backgroundColor: '#E63946',

@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, StyleSheet, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView, Dimensions, Image } from 'react-native';
+import { View, Text, TextInput, StyleSheet, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView, Image, Alert, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { Href, useRouter } from 'expo-router';
+import { loginUser } from '@/src/lib/auth';
 
-const { width } = Dimensions.get('window');
+const dashboardRoute = '/dashboard' as Href;
 
 export default function AdminSignInScreen() {
   const router = useRouter();
@@ -12,6 +13,35 @@ export default function AdminSignInScreen() {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleAdminSignIn = async () => {
+    if (!phoneNumber.trim() || !password.trim()) {
+      Alert.alert('Missing fields', 'Please enter your phone number and password.');
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      const response = await loginUser({
+        phoneNumber: phoneNumber.trim(),
+        password,
+      });
+
+      if (response.user.role !== 'admin') {
+        Alert.alert('Access denied', 'This account is not registered as an admin.');
+        return;
+      }
+
+      router.replace(dashboardRoute);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to sign in right now.';
+      Alert.alert('Sign in failed', message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container} edges={['left', 'right', 'bottom']}>
       <Image 
@@ -83,12 +113,16 @@ export default function AdminSignInScreen() {
               </TouchableOpacity>
             </View>
 
-            <TouchableOpacity style={styles.button}>
-              <Text style={styles.buttonText}>Sign In</Text>
+            <TouchableOpacity style={[styles.button, isSubmitting && styles.buttonDisabled]} onPress={handleAdminSignIn} disabled={isSubmitting}>
+              {isSubmitting ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <Text style={styles.buttonText}>Sign In</Text>
+              )}
             </TouchableOpacity>
 
             <View style={styles.footerContainer}>
-              <Text style={styles.footerText}>Don't have an account? </Text>
+              <Text style={styles.footerText}>{"Don't have an account? "}</Text>
               <TouchableOpacity onPress={() => router.push('/SignUp')}>
                 <Text style={styles.footerLink}>Sign Up</Text>
               </TouchableOpacity>
@@ -134,12 +168,16 @@ const styles = StyleSheet.create({
     marginBottom: 40,
   },
   logo: {
-    width: 200,
+    width: '70%',
+    maxWidth: 200,
     height: 60,
   },
   titleContainer: {
     alignItems: 'center',
     marginBottom: 20,
+    width: '100%',
+    maxWidth: 420,
+    alignSelf: 'center',
   },
   titleSerif: {
     fontSize: 42,
@@ -155,14 +193,20 @@ const styles = StyleSheet.create({
   switchContainer: {
     alignItems: 'center',
     marginBottom: 30,
+    width: '100%',
+    maxWidth: 420,
+    alignSelf: 'center',
   },
   switchText: {
     color: '#E63946',
     fontWeight: '600',
     fontSize: 14,
+    textAlign: 'center',
   },
   formContainer: {
     width: '100%',
+    maxWidth: 420,
+    alignSelf: 'center',
   },
   label: {
     fontSize: 14,
@@ -207,6 +251,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 24,
   },
+  buttonDisabled: {
+    opacity: 0.7,
+  },
   buttonText: {
     color: '#FFFFFF',
     fontSize: 16,
@@ -215,14 +262,17 @@ const styles = StyleSheet.create({
   footerContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
+    flexWrap: 'wrap',
   },
   footerText: {
     color: '#718096',
     fontSize: 14,
+    textAlign: 'center',
   },
   footerLink: {
     color: '#E63946',
     fontSize: 14,
     fontWeight: '600',
+    textAlign: 'center',
   },
 });

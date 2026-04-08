@@ -7,11 +7,14 @@ import {
   TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
-  ScrollView
+  ScrollView,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { Href, useRouter } from 'expo-router';
+import { registerUser } from '@/src/lib/auth';
 
 export default function SignUpScreen() {
   const router = useRouter();
@@ -26,6 +29,50 @@ export default function SignUpScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [agreeToTerms, setAgreeToTerms] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSignUp = async () => {
+    if (!fullName.trim() || !age.trim() || !email.trim() || !phone.trim() || !address.trim() || !password || !confirmPassword) {
+      Alert.alert('Missing fields', 'Please fill in all the signup fields.');
+      return;
+    }
+
+    if (!agreeToTerms) {
+      Alert.alert('Terms required', 'Please agree to the Terms and Conditions first.');
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      Alert.alert('Password mismatch', 'Password and confirm password must match.');
+      return;
+    }
+
+    const numericAge = Number(age);
+
+    if (!Number.isInteger(numericAge) || numericAge <= 0) {
+      Alert.alert('Invalid age', 'Please enter a valid age.');
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      await registerUser({
+        name: fullName.trim(),
+        age: numericAge,
+        email: email.trim(),
+        phoneNumber: phone.trim(),
+        primaryAddress: address.trim(),
+        password,
+      });
+
+      router.replace('/UserSignIn' as Href);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to sign up right now.';
+      Alert.alert('Sign up failed', message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -159,8 +206,12 @@ export default function SignUpScreen() {
             </TouchableOpacity>
           </View>
 
-          <TouchableOpacity style={styles.button}>
-            <Text style={styles.buttonText}>Sign Up</Text>
+          <TouchableOpacity style={[styles.button, isSubmitting && styles.buttonDisabled]} onPress={handleSignUp} disabled={isSubmitting}>
+            {isSubmitting ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <Text style={styles.buttonText}>Sign Up</Text>
+            )}
           </TouchableOpacity>
 
           <View style={styles.footerContainer}>
@@ -186,6 +237,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 24,
     paddingVertical: 16,
+    width: '100%',
+    maxWidth: 480,
+    alignSelf: 'center',
   },
   backButton: {
     padding: 4,
@@ -194,11 +248,17 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#718096',
     fontWeight: '500',
+    flex: 1,
+    textAlign: 'center',
+    paddingHorizontal: 12,
   },
   scrollContent: {
     flexGrow: 1,
     paddingHorizontal: 24,
     paddingBottom: 40,
+    width: '100%',
+    maxWidth: 480,
+    alignSelf: 'center',
   },
   label: {
     fontSize: 14,
@@ -241,6 +301,7 @@ const styles = StyleSheet.create({
   checkboxContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+    flexWrap: 'wrap',
     marginTop: 16,
     marginBottom: 24,
   },
@@ -263,6 +324,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 24,
   },
+  buttonDisabled: {
+    opacity: 0.7,
+  },
   buttonText: {
     color: '#FFFFFF',
     fontSize: 16,
@@ -271,14 +335,17 @@ const styles = StyleSheet.create({
   footerContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
+    flexWrap: 'wrap',
   },
   footerText: {
     color: '#718096',
     fontSize: 14,
+    textAlign: 'center',
   },
   footerLink: {
     color: '#E63946',
     fontSize: 14,
     fontWeight: '600',
+    textAlign: 'center',
   },
 });
