@@ -1,5 +1,6 @@
 import React, { useRef, useState } from 'react';
 import {
+  Alert,
   Image,
   KeyboardAvoidingView,
   Platform,
@@ -11,14 +12,15 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 
 const OTP_LENGTH = 6;
 
 export default function OtpVerificationScreen() {
   const router = useRouter();
+  const { email, userId } = useLocalSearchParams<{ email?: string; userId?: string }>();
   const [otp, setOtp] = useState<string[]>(Array(OTP_LENGTH).fill(''));
-  const inputRefs = useRef<Array<TextInput | null>>([]);
+  const inputRefs = useRef<(TextInput | null)[]>([]);
 
   const handleOtpChange = (value: string, index: number) => {
     const sanitizedValue = value.replace(/[^0-9]/g, '');
@@ -63,6 +65,28 @@ export default function OtpVerificationScreen() {
     }
   };
 
+  const handleVerifyOtp = () => {
+    if (!userId) {
+      Alert.alert('Missing reset details', 'Please request a new OTP and try again.');
+      return;
+    }
+
+    const otpToken = otp.join('');
+
+    if (otpToken.length !== OTP_LENGTH) {
+      Alert.alert('Incomplete OTP', 'Please enter the full 6-digit OTP code.');
+      return;
+    }
+
+    router.push({
+      pathname: '/ResetPassword',
+      params: {
+        otpToken,
+        userId,
+      },
+    });
+  };
+
   return (
     <SafeAreaView style={styles.container} edges={['left', 'right', 'bottom']}>
       <Image
@@ -86,7 +110,7 @@ export default function OtpVerificationScreen() {
           <View style={styles.titleContainer}>
             <Text style={styles.title}>OTP Verification</Text>
             <Text style={styles.subtitle}>
-              Enter the 6-digit code sent to your email address
+              Enter the 6-digit code sent to {email || 'your email address'}
             </Text>
           </View>
 
@@ -114,7 +138,7 @@ export default function OtpVerificationScreen() {
               ))}
             </View>
 
-            <TouchableOpacity style={styles.button}>
+            <TouchableOpacity style={styles.button} onPress={handleVerifyOtp}>
               <Text style={styles.buttonText}>Verify OTP</Text>
             </TouchableOpacity>
 

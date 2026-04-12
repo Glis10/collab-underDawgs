@@ -14,33 +14,55 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import { forgotPassword } from '@/src/lib/auth';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { resetPassword } from '@/src/lib/auth';
 
-export default function ForgotPasswordScreen() {
+export default function ResetPasswordScreen() {
   const router = useRouter();
-  const [email, setEmail] = useState('');
+  const { otpToken, userId } = useLocalSearchParams<{ otpToken?: string; userId?: string }>();
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleForgotPassword = async () => {
-    if (!email.trim()) {
-      Alert.alert('Missing email', 'Please enter your linked email address.');
+  const handleResetPassword = async () => {
+    if (!userId || !otpToken) {
+      Alert.alert('Missing reset details', 'Please request a new OTP and try again.');
+      return;
+    }
+
+    if (!password.trim() || !confirmPassword.trim()) {
+      Alert.alert('Missing fields', 'Please enter and confirm your new password.');
+      return;
+    }
+
+    if (password.length < 8) {
+      Alert.alert('Weak password', 'Your new password must be at least 8 characters long.');
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      Alert.alert('Passwords do not match', 'Please make sure both password fields match.');
       return;
     }
 
     try {
       setIsSubmitting(true);
-      const response = await forgotPassword(email.trim());
-      router.push({
-        pathname: '/OtpVerification',
-        params: {
-          email: email.trim(),
-          userId: response.userId,
-        },
+      await resetPassword({
+        userId,
+        otpToken,
+        password,
       });
+      Alert.alert('Password updated', 'Your password has been reset successfully.', [
+        {
+          text: 'Back to Sign In',
+          onPress: () => router.replace('/UserSignIn'),
+        },
+      ]);
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unable to send OTP right now.';
-      Alert.alert('Request failed', message);
+      const message = error instanceof Error ? error.message : 'Unable to reset your password right now.';
+      Alert.alert('Reset failed', message);
     } finally {
       setIsSubmitting(false);
     }
@@ -67,36 +89,64 @@ export default function ForgotPasswordScreen() {
           </View>
 
           <View style={styles.titleContainer}>
-            <Text style={styles.title}>Forgot Password</Text>
-            <Text style={styles.subtitle}>Enter your linked email to reset your password</Text>
+            <Text style={styles.title}>Reset Password</Text>
+            <Text style={styles.subtitle}>Create a new password for your account</Text>
           </View>
 
           <View style={styles.formContainer}>
-            <Text style={styles.label}>Email</Text>
+            <Text style={styles.label}>New Password</Text>
             <View style={styles.inputContainer}>
-              <MaterialCommunityIcons name="at" size={20} color="#718096" style={styles.icon} />
+              <MaterialCommunityIcons name="lock" size={20} color="#718096" style={styles.icon} />
               <TextInput
                 style={styles.input}
-                placeholder="Enter your email"
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoCorrect={false}
-                value={email}
-                onChangeText={setEmail}
+                placeholder="Enter new password"
+                secureTextEntry={!showPassword}
+                value={password}
+                onChangeText={setPassword}
                 placeholderTextColor="#A0AEC0"
               />
+              <TouchableOpacity
+                onPress={() => setShowPassword((current) => !current)}
+                style={styles.eyeIcon}>
+                <MaterialCommunityIcons
+                  name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                  size={20}
+                  color="#718096"
+                />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.label}>Confirm Password</Text>
+            <View style={styles.inputContainer}>
+              <MaterialCommunityIcons name="lock-check" size={20} color="#718096" style={styles.icon} />
+              <TextInput
+                style={styles.input}
+                placeholder="Confirm new password"
+                secureTextEntry={!showConfirmPassword}
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+                placeholderTextColor="#A0AEC0"
+              />
+              <TouchableOpacity
+                onPress={() => setShowConfirmPassword((current) => !current)}
+                style={styles.eyeIcon}>
+                <MaterialCommunityIcons
+                  name={showConfirmPassword ? 'eye-off-outline' : 'eye-outline'}
+                  size={20}
+                  color="#718096"
+                />
+              </TouchableOpacity>
             </View>
 
             <TouchableOpacity
               style={[styles.button, isSubmitting && styles.buttonDisabled]}
-              onPress={handleForgotPassword}
+              onPress={handleResetPassword}
               disabled={isSubmitting}>
-              {isSubmitting ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.buttonText}>Send OTP</Text>}
+              {isSubmitting ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.buttonText}>Update Password</Text>}
             </TouchableOpacity>
-           
 
             <TouchableOpacity style={styles.backLinkContainer} onPress={() => router.back()}>
-              <Text style={styles.backLinkText}>Back to Login</Text>
+              <Text style={styles.backLinkText}>Back</Text>
             </TouchableOpacity>
           </View>
         </ScrollView>
@@ -183,7 +233,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#F7FAFC',
     borderRadius: 12,
-    marginBottom: 24,
+    marginBottom: 20,
     paddingHorizontal: 12,
     height: 56,
   },
@@ -196,11 +246,15 @@ const styles = StyleSheet.create({
     color: '#2D3748',
     fontSize: 16,
   },
+  eyeIcon: {
+    padding: 10,
+  },
   button: {
     backgroundColor: '#E63946',
     paddingVertical: 16,
     borderRadius: 12,
     alignItems: 'center',
+    marginTop: 8,
     marginBottom: 24,
   },
   buttonDisabled: {
@@ -215,7 +269,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   backLinkText: {
-    color: '#E63946',
+    color: '#718096',
     fontSize: 14,
     fontWeight: '600',
   },
