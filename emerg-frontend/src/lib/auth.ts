@@ -1,5 +1,3 @@
-import { Platform } from 'react-native';
-
 type ApiEnvelope<T> = {
   data?: T;
   message?: string;
@@ -36,10 +34,7 @@ type RegisterInput = {
   password: string;
 };
 
-const FALLBACK_API_BASE_URL =
-  Platform.OS === 'android' ? 'http://10.0.2.2:3000/api' : 'http://localhost:3000/api';
-
-export const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || FALLBACK_API_BASE_URL;
+export const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL;
 
 function normalizePhoneNumber(phoneNumber: string) {
   return phoneNumber.replace(/\D/g, '');
@@ -47,6 +42,10 @@ function normalizePhoneNumber(phoneNumber: string) {
 
 async function apiRequest<T>(path: string, init: RequestInit): Promise<T> {
   let response: Response;
+
+  if (!API_BASE_URL) {
+    throw new Error('Missing EXPO_PUBLIC_API_BASE_URL in emerg-frontend/.env');
+  }
 
   try {
     response = await fetch(`${API_BASE_URL}${path}`, {
@@ -77,6 +76,40 @@ async function apiRequest<T>(path: string, init: RequestInit): Promise<T> {
   }
 
   return payload.data;
+}
+
+async function apiRequestAllowEmpty<T>(path: string, init: RequestInit): Promise<T> {
+  let response: Response;
+
+  if (!API_BASE_URL) {
+    throw new Error('Missing EXPO_PUBLIC_API_BASE_URL in emerg-frontend/.env');
+  }
+
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      ...init,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(init.headers || {}),
+      },
+    });
+  } catch {
+    throw new Error(`Could not reach backend at ${API_BASE_URL}. Make sure the backend is running and your phone and laptop are on the same network.`);
+  }
+
+  let payload: ApiEnvelope<T>;
+
+  try {
+    payload = (await response.json()) as ApiEnvelope<T>;
+  } catch {
+    throw new Error('Backend returned an invalid response.');
+  }
+
+  if (!response.ok || payload.success === false) {
+    throw new Error(payload.message || 'Request failed');
+  }
+
+  return payload.data ?? ({ message: payload.message } as T);
 }
 
 export async function registerUser(input: RegisterInput): Promise<AuthPayload> {
@@ -115,5 +148,18 @@ export async function forgotPassword(email: string): Promise<{ userId: string }>
   return apiRequest<{ userId: string }>('/auth/forgot-password', {
     method: 'POST',
     body: JSON.stringify({ email }),
+  });
+}
+
+type ResetPasswordInput = {
+  userId: string;
+  otpToken: string;
+  password: string;
+};
+
+export async function resetPassword(input: ResetPasswordInput): Promise<{ message?: string }> {
+  return apiRequestAllowEmpty<{ message?: string }>('/auth/reset-password', {
+    method: 'POST',
+    body: JSON.stringify(input),
   });
 }
