@@ -5,7 +5,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Href, useRouter } from 'expo-router';
 import { loginUser } from '@/src/lib/auth';
 
-const dashboardRoute = '/dashboard' as Href;
+const adminDashboardRoute = '/admin-dashboard' as Href;
 
 export default function AdminSignInScreen() {
   const router = useRouter();
@@ -33,7 +33,7 @@ export default function AdminSignInScreen() {
         return;
       }
 
-      router.replace(dashboardRoute);
+      router.replace(adminDashboardRoute);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to sign in right now.';
       Alert.alert('Sign in failed', message);

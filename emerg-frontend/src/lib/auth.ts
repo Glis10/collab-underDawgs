@@ -20,6 +20,30 @@ type AuthPayload = {
   user: AuthUser;
 };
 
+type ServiceType = 'ambulance' | 'police' | 'rescue_team' | 'fire_truck';
+
+type ServiceProviderInput = {
+  name: string;
+  age: number;
+  email: string;
+  phoneNumber: string;
+  primaryAddress: string;
+  password: string;
+  serviceType: ServiceType;
+  organizationId: string;
+};
+
+type ServiceProviderPayload = {
+  serviceProvider: {
+    name: string;
+    age: number;
+    email: string;
+    phoneNumber: number;
+    primaryAddress: string;
+    serviceType: ServiceType;
+  };
+};
+
 type LoginInput = {
   phoneNumber: string;
   password: string;
@@ -35,6 +59,8 @@ type RegisterInput = {
 };
 
 export const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL;
+
+let authToken: string | null = null;
 
 function normalizePhoneNumber(phoneNumber: string) {
   return phoneNumber.replace(/\D/g, '');
@@ -135,8 +161,35 @@ export async function loginUser(input: LoginInput): Promise<AuthPayload> {
     throw new Error('Please enter a valid phone number.');
   }
 
-  return apiRequest<AuthPayload>('/auth/login', {
+  const payload = await apiRequest<AuthPayload>('/auth/login', {
     method: 'POST',
+    body: JSON.stringify({
+      ...input,
+      phoneNumber: normalizedPhoneNumber,
+    }),
+  });
+
+  authToken = payload.token;
+
+  return payload;
+}
+
+export async function createServiceProviderCredentials(input: ServiceProviderInput): Promise<ServiceProviderPayload> {
+  const normalizedPhoneNumber = normalizePhoneNumber(input.phoneNumber);
+
+  if (!authToken) {
+    throw new Error('Please sign in as admin before creating service provider credentials.');
+  }
+
+  if (!normalizedPhoneNumber) {
+    throw new Error('Please enter a valid phone number.');
+  }
+
+  return apiRequest<ServiceProviderPayload>('/v1/service-provider/register', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${authToken}`,
+    },
     body: JSON.stringify({
       ...input,
       phoneNumber: normalizedPhoneNumber,
