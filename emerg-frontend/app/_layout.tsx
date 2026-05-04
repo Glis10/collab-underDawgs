@@ -11,6 +11,7 @@ export default function RootLayout() {
       <Stack.Screen name="OtpVerification" />
       <Stack.Screen name="ResetPassword" />
       <Stack.Screen name="dashboard" />
+      <Stack.Screen name="admin-dashboard" />
       <Stack.Screen name="Terms" />
       <Stack.Screen name="(tabs)" />
       <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
