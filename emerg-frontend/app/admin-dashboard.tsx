@@ -10,81 +10,86 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { createServiceProviderCredentials } from '@/src/lib/auth';
 
 const RED = '#E63946';
 const NAVY = '#1A365D';
+const GREEN = '#00A86B';
+const BLUE = '#3182CE';
+const YELLOW = '#ECC94B';
+const TEXT = '#1A202C';
 const MUTED = '#718096';
+const FAINT = '#A0AEC0';
 const BORDER = '#E2E8F0';
 const SURFACE = '#F7FAFC';
 
-const metrics = [
+const providerStats = [
   {
-    label: 'Active Alerts',
-    value: '12',
-    icon: 'alarm-light-outline',
+    label: 'Assigned',
+    value: '04',
+    icon: 'clipboard-pulse-outline',
     color: RED,
-    trend: '+3 today',
+    detail: '2 urgent',
   },
   {
-    label: 'Responders Online',
-    value: '48',
-    icon: 'account-hard-hat',
-    color: '#00A86B',
-    trend: '8 nearby',
+    label: 'Available',
+    value: '18',
+    icon: 'account-check-outline',
+    color: GREEN,
+    detail: 'nearby teams',
   },
   {
-    label: 'Pending Dispatch',
+    label: 'On Route',
     value: '07',
-    icon: 'clock-alert-outline',
-    color: '#ECC94B',
-    trend: '2 critical',
+    icon: 'map-marker-path',
+    color: BLUE,
+    detail: 'tracking live',
   },
   {
     label: 'Resolved',
     value: '31',
     icon: 'check-decagram-outline',
-    color: '#3182CE',
-    trend: 'last 24h',
+    color: YELLOW,
+    detail: 'today',
   },
 ] as const;
 
-const incidents = [
+const activeRequests = [
   {
-    type: 'Ambulance',
-    requester: 'Maya Gurung',
+    service: 'Ambulance',
+    patient: 'Maya Gurung',
     location: 'Lakeside Road, Pokhara',
-    time: '2 min ago',
-    status: 'Critical',
-    color: RED,
-    icon: 'ambulance',
-  },
-  {
-    type: 'Fire Rescue',
-    requester: 'Niraj Shrestha',
-    location: 'New Baneshwor, Kathmandu',
-    time: '9 min ago',
-    status: 'Dispatching',
-    color: '#ECC94B',
-    icon: 'fire-truck',
-  },
-  {
-    type: 'Police Help',
-    requester: 'Asha Thapa',
-    location: 'Itahari Main Chowk',
-    time: '18 min ago',
+    eta: '6 min',
     status: 'Assigned',
-    color: '#3182CE',
+    icon: 'ambulance',
+    color: RED,
+  },
+  {
+    service: 'Fire Response',
+    patient: 'Niraj Shrestha',
+    location: 'New Baneshwor, Kathmandu',
+    eta: '11 min',
+    status: 'On route',
+    icon: 'fire-truck',
+    color: YELLOW,
+  },
+  {
+    service: 'Police Support',
+    patient: 'Asha Thapa',
+    location: 'Itahari Main Chowk',
+    eta: 'Ready',
+    status: 'Available',
     icon: 'police-badge-outline',
+    color: BLUE,
   },
 ] as const;
 
-const responders = [
-  { name: 'Ambulance A-04', area: 'North Zone', status: 'Available' },
-  { name: 'Police Unit P-11', area: 'Central Zone', status: 'On route' },
-  { name: 'Fire Team F-02', area: 'East Zone', status: 'Available' },
+const teamUnits = [
+  { name: 'Ambulance A-04', area: 'North Zone', status: 'Available', color: GREEN },
+  { name: 'Police Unit P-11', area: 'Central Zone', status: 'On route', color: BLUE },
+  { name: 'Fire Team F-02', area: 'East Zone', status: 'Available', color: GREEN },
 ] as const;
 
 const serviceTypes = [
@@ -98,18 +103,19 @@ const serviceTypes = [
   icon: keyof typeof MaterialCommunityIcons.glyphMap;
 }[];
 
-const adminTabs = [
-  { label: 'Overview', icon: 'grid-outline' },
-  { label: 'Alerts', icon: 'warning-outline' },
-  { label: 'Teams', icon: 'people-outline' },
-  { label: 'Settings', icon: 'settings-outline' },
+const providerTabs = [
+  { label: 'Home', icon: 'home-outline' },
+  { label: 'Requests', icon: 'navigate-outline' },
+  { label: 'Team', icon: 'people-outline' },
+  { label: 'Profile', icon: 'person-outline' },
 ] as const satisfies readonly {
   label: string;
   icon: keyof typeof Ionicons.glyphMap;
 }[];
 
 export default function AdminDashboardScreen() {
-  const [activeTab, setActiveTab] = useState('Overview');
+  const [activeTab, setActiveTab] = useState('Home');
+  const [isOnDuty, setIsOnDuty] = useState(true);
   const [providerName, setProviderName] = useState('');
   const [providerAge, setProviderAge] = useState('');
   const [providerEmail, setProviderEmail] = useState('');
@@ -141,14 +147,14 @@ export default function AdminDashboardScreen() {
       !providerPassword.trim() ||
       !organizationId.trim()
     ) {
-      Alert.alert('Missing fields', 'Please fill in all service provider credential fields.');
+      Alert.alert('Missing fields', 'Please fill in all responder access fields.');
       return;
     }
 
     const numericAge = Number(providerAge);
 
     if (!Number.isInteger(numericAge) || numericAge <= 0) {
-      Alert.alert('Invalid age', 'Please enter a valid age for the service provider.');
+      Alert.alert('Invalid age', 'Please enter a valid age.');
       return;
     }
 
@@ -165,10 +171,10 @@ export default function AdminDashboardScreen() {
         organizationId: organizationId.trim(),
       });
 
-      Alert.alert('Credentials created', 'Service provider credentials are ready to share.');
+      Alert.alert('Access created', 'Responder access is ready to share.');
       resetProviderForm();
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unable to create service provider credentials right now.';
+      const message = error instanceof Error ? error.message : 'Unable to create responder access right now.';
       Alert.alert('Create failed', message);
     } finally {
       setIsCreatingProvider(false);
@@ -186,68 +192,77 @@ export default function AdminDashboardScreen() {
           </TouchableOpacity>
         </View>
 
-        <View style={styles.titleRow}>
-          <View>
-            <Text style={styles.eyebrow}>Admin Command Center</Text>
-            <Text style={styles.title}>Emergency Overview</Text>
+        <View style={styles.welcomeRow}>
+          <View style={styles.welcomeTextWrap}>
+            <Text style={styles.welcomeText}>
+              Welcome, <Text style={styles.userName}>Provider</Text>
+            </Text>
+            <View style={styles.locationRow}>
+              <Ionicons name="location-outline" size={15} color={MUTED} />
+              <Text style={styles.locationText}>Kathmandu Valley response area</Text>
+            </View>
           </View>
-          <View style={styles.liveBadge}>
-            <View style={styles.liveDot} />
-            <Text style={styles.liveText}>Live</Text>
+          <TouchableOpacity
+            activeOpacity={0.82}
+            onPress={() => setIsOnDuty((current) => !current)}
+            style={[styles.dutyToggle, !isOnDuty && styles.dutyToggleOff]}
+          >
+            <View style={[styles.dutyDot, !isOnDuty && styles.dutyDotOff]} />
+            <Text style={[styles.dutyText, !isOnDuty && styles.dutyTextOff]}>{isOnDuty ? 'On Duty' : 'Off Duty'}</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.dispatchPanel}>
+          <View style={styles.dispatchIconWrap}>
+            <MaterialCommunityIcons name="radio-handheld" size={34} color="#FFFFFF" />
+          </View>
+          <View style={styles.dispatchTextWrap}>
+            <Text style={styles.dispatchTitle}>Response desk is active</Text>
+            <Text style={styles.dispatchSubtitle}>Track assigned requests, update availability, and manage responder access from one provider workspace.</Text>
           </View>
         </View>
 
-        <View style={styles.alertPanel}>
-          <View style={styles.alertIconWrap}>
-            <MaterialCommunityIcons name="shield-alert-outline" size={30} color="#FFFFFF" />
-          </View>
-          <View style={styles.alertTextWrap}>
-            <Text style={styles.alertTitle}>12 incidents need admin attention</Text>
-            <Text style={styles.alertSubtitle}>Review incoming requests, assign responders, and monitor response progress.</Text>
-          </View>
-        </View>
-
-        <View style={styles.metricsGrid}>
-          {metrics.map((item) => (
-            <View key={item.label} style={styles.metricCard}>
-              <View style={[styles.metricIcon, { backgroundColor: `${item.color}18` }]}>
-                <MaterialCommunityIcons name={item.icon} size={24} color={item.color} />
+        <View style={styles.statsGrid}>
+          {providerStats.map((item) => (
+            <View key={item.label} style={styles.statCard}>
+              <View style={[styles.statIcon, { backgroundColor: `${item.color}18` }]}>
+                <MaterialCommunityIcons name={item.icon} size={23} color={item.color} />
               </View>
-              <Text style={styles.metricValue}>{item.value}</Text>
-              <Text style={styles.metricLabel}>{item.label}</Text>
-              <Text style={[styles.metricTrend, { color: item.color }]}>{item.trend}</Text>
+              <Text style={styles.statValue}>{item.value}</Text>
+              <Text style={styles.statLabel}>{item.label}</Text>
+              <Text style={[styles.statDetail, { color: item.color }]}>{item.detail}</Text>
             </View>
           ))}
         </View>
 
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Incoming Requests</Text>
+          <Text style={styles.sectionTitle}>Active Requests</Text>
           <TouchableOpacity activeOpacity={0.75}>
             <Text style={styles.sectionAction}>View all</Text>
           </TouchableOpacity>
         </View>
 
-        {incidents.map((incident) => (
-          <View key={`${incident.type}-${incident.requester}`} style={styles.incidentCard}>
-            <View style={[styles.incidentIcon, { backgroundColor: `${incident.color}18` }]}>
-              <MaterialCommunityIcons name={incident.icon} size={28} color={incident.color} />
+        {activeRequests.map((request) => (
+          <View key={`${request.service}-${request.patient}`} style={styles.requestCard}>
+            <View style={[styles.requestIcon, { backgroundColor: `${request.color}18` }]}>
+              <MaterialCommunityIcons name={request.icon} size={28} color={request.color} />
             </View>
-            <View style={styles.incidentDetails}>
-              <View style={styles.incidentTopRow}>
-                <Text style={styles.incidentType}>{incident.type}</Text>
-                <Text style={styles.incidentTime}>{incident.time}</Text>
+            <View style={styles.requestDetails}>
+              <View style={styles.requestTopRow}>
+                <Text style={styles.requestType}>{request.service}</Text>
+                <Text style={styles.requestEta}>{request.eta}</Text>
               </View>
-              <Text style={styles.requester}>{incident.requester}</Text>
+              <Text style={styles.patientName}>{request.patient}</Text>
               <View style={styles.locationRow}>
                 <Ionicons name="location-outline" size={14} color={MUTED} />
-                <Text style={styles.locationText}>{incident.location}</Text>
+                <Text style={styles.locationText}>{request.location}</Text>
               </View>
-              <View style={styles.incidentActions}>
-                <View style={[styles.statusBadge, { backgroundColor: incident.color }]}>
-                  <Text style={styles.statusText}>{incident.status}</Text>
+              <View style={styles.requestActions}>
+                <View style={[styles.statusBadge, { backgroundColor: request.color }]}>
+                  <Text style={styles.statusText}>{request.status}</Text>
                 </View>
-                <TouchableOpacity style={styles.assignButton} activeOpacity={0.75}>
-                  <Text style={styles.assignButtonText}>Assign</Text>
+                <TouchableOpacity style={styles.primarySmallButton} activeOpacity={0.78}>
+                  <Text style={styles.primarySmallButtonText}>Open</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -255,34 +270,32 @@ export default function AdminDashboardScreen() {
         ))}
 
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Responder Status</Text>
+          <Text style={styles.sectionTitle}>Team Status</Text>
           <TouchableOpacity activeOpacity={0.75}>
             <Text style={styles.sectionAction}>Manage</Text>
           </TouchableOpacity>
         </View>
 
-        <View style={styles.responderList}>
-          {responders.map((responder) => (
-            <View key={responder.name} style={styles.responderRow}>
-              <View style={styles.responderAvatar}>
+        <View style={styles.teamList}>
+          {teamUnits.map((unit) => (
+            <View key={unit.name} style={styles.teamRow}>
+              <View style={styles.teamAvatar}>
                 <MaterialCommunityIcons name="radio-handheld" size={22} color={RED} />
               </View>
-              <View style={styles.responderText}>
-                <Text style={styles.responderName}>{responder.name}</Text>
-                <Text style={styles.responderArea}>{responder.area}</Text>
+              <View style={styles.teamText}>
+                <Text style={styles.teamName}>{unit.name}</Text>
+                <Text style={styles.teamArea}>{unit.area}</Text>
               </View>
-              <Text style={[styles.responderStatus, responder.status === 'Available' ? styles.available : styles.onRoute]}>
-                {responder.status}
-              </Text>
+              <Text style={[styles.teamStatus, { color: unit.color }]}>{unit.status}</Text>
             </View>
           ))}
         </View>
 
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Create Provider</Text>
+          <Text style={styles.sectionTitle}>Add Responder Access</Text>
         </View>
 
-        <View style={styles.providerPanel}>
+        <View style={styles.accessPanel}>
           <View style={styles.providerTypeGrid}>
             {serviceTypes.map((type) => {
               const isSelected = serviceType === type.value;
@@ -302,63 +315,63 @@ export default function AdminDashboardScreen() {
           </View>
 
           <TextInput
-            style={styles.providerInput}
+            style={styles.accessInput}
             placeholder="Full name"
             value={providerName}
             onChangeText={setProviderName}
-            placeholderTextColor="#A0AEC0"
+            placeholderTextColor={FAINT}
           />
           <TextInput
-            style={styles.providerInput}
+            style={styles.accessInput}
             placeholder="Age"
             keyboardType="numeric"
             value={providerAge}
             onChangeText={setProviderAge}
-            placeholderTextColor="#A0AEC0"
+            placeholderTextColor={FAINT}
           />
           <TextInput
-            style={styles.providerInput}
+            style={styles.accessInput}
             placeholder="Email"
             keyboardType="email-address"
             autoCapitalize="none"
             value={providerEmail}
             onChangeText={setProviderEmail}
-            placeholderTextColor="#A0AEC0"
+            placeholderTextColor={FAINT}
           />
           <TextInput
-            style={styles.providerInput}
+            style={styles.accessInput}
             placeholder="Phone number"
             keyboardType="phone-pad"
             value={providerPhone}
             onChangeText={setProviderPhone}
-            placeholderTextColor="#A0AEC0"
+            placeholderTextColor={FAINT}
           />
           <TextInput
-            style={styles.providerInput}
+            style={styles.accessInput}
             placeholder="Primary address"
             value={providerAddress}
             onChangeText={setProviderAddress}
-            placeholderTextColor="#A0AEC0"
+            placeholderTextColor={FAINT}
           />
           <TextInput
-            style={styles.providerInput}
+            style={styles.accessInput}
             placeholder="Organization ID"
             autoCapitalize="none"
             value={organizationId}
             onChangeText={setOrganizationId}
-            placeholderTextColor="#A0AEC0"
+            placeholderTextColor={FAINT}
           />
           <TextInput
-            style={styles.providerInput}
+            style={styles.accessInput}
             placeholder="Temporary password"
             secureTextEntry
             value={providerPassword}
             onChangeText={setProviderPassword}
-            placeholderTextColor="#A0AEC0"
+            placeholderTextColor={FAINT}
           />
 
           <TouchableOpacity
-            style={[styles.createProviderButton, isCreatingProvider && styles.createProviderButtonDisabled]}
+            style={[styles.createAccessButton, isCreatingProvider && styles.createAccessButtonDisabled]}
             activeOpacity={0.8}
             disabled={isCreatingProvider}
             onPress={handleCreateProvider}
@@ -366,7 +379,10 @@ export default function AdminDashboardScreen() {
             {isCreatingProvider ? (
               <ActivityIndicator color="#FFFFFF" />
             ) : (
-              <Text style={styles.createProviderButtonText}>Create Credentials</Text>
+              <>
+                <Ionicons name="person-add-outline" size={18} color="#FFFFFF" />
+                <Text style={styles.createAccessButtonText}>Create Access</Text>
+              </>
             )}
           </TouchableOpacity>
         </View>
@@ -375,7 +391,7 @@ export default function AdminDashboardScreen() {
       </ScrollView>
 
       <View style={styles.bottomTabBar}>
-        {adminTabs.map((tab) => {
+        {providerTabs.map((tab) => {
           const isActive = activeTab === tab.label;
 
           return (
@@ -394,19 +410,19 @@ export default function AdminDashboardScreen() {
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
     backgroundColor: '#FFFFFF',
+    flex: 1,
   },
   scrollContent: {
+    paddingBottom: 24,
     paddingHorizontal: 20,
     paddingTop: 10,
-    paddingBottom: 24,
   },
   header: {
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 22,
+    marginBottom: 20,
   },
   logo: {
     height: 50,
@@ -433,45 +449,70 @@ const styles = StyleSheet.create({
     top: 9,
     width: 10,
   },
-  titleRow: {
+  welcomeRow: {
     alignItems: 'flex-start',
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginBottom: 18,
   },
-  eyebrow: {
-    color: RED,
-    fontSize: 13,
-    fontWeight: '700',
-    marginBottom: 5,
+  welcomeTextWrap: {
+    flex: 1,
+    paddingRight: 12,
   },
-  title: {
+  welcomeText: {
     color: NAVY,
-    fontSize: 26,
+    fontSize: 24,
+    fontWeight: '400',
+    marginBottom: 7,
+  },
+  userName: {
+    color: RED,
     fontWeight: '700',
   },
-  liveBadge: {
+  locationRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+  },
+  locationText: {
+    color: MUTED,
+    flex: 1,
+    fontSize: 13,
+    marginLeft: 4,
+  },
+  dutyToggle: {
     alignItems: 'center',
     backgroundColor: '#E6FFFA',
+    borderColor: '#B2F5EA',
     borderRadius: 8,
+    borderWidth: 1,
     flexDirection: 'row',
     marginTop: 2,
     paddingHorizontal: 10,
-    paddingVertical: 7,
+    paddingVertical: 8,
   },
-  liveDot: {
-    backgroundColor: '#00A86B',
+  dutyToggleOff: {
+    backgroundColor: SURFACE,
+    borderColor: BORDER,
+  },
+  dutyDot: {
+    backgroundColor: GREEN,
     borderRadius: 4,
     height: 8,
     marginRight: 6,
     width: 8,
   },
-  liveText: {
+  dutyDotOff: {
+    backgroundColor: FAINT,
+  },
+  dutyText: {
     color: '#047857',
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: '800',
   },
-  alertPanel: {
+  dutyTextOff: {
+    color: MUTED,
+  },
+  dispatchPanel: {
     alignItems: 'center',
     backgroundColor: RED,
     borderRadius: 8,
@@ -479,36 +520,36 @@ const styles = StyleSheet.create({
     marginBottom: 18,
     padding: 16,
   },
-  alertIconWrap: {
+  dispatchIconWrap: {
     alignItems: 'center',
     backgroundColor: 'rgba(255,255,255,0.18)',
     borderRadius: 8,
-    height: 52,
+    height: 54,
     justifyContent: 'center',
     marginRight: 14,
-    width: 52,
+    width: 54,
   },
-  alertTextWrap: {
+  dispatchTextWrap: {
     flex: 1,
   },
-  alertTitle: {
+  dispatchTitle: {
     color: '#FFFFFF',
     fontSize: 17,
-    fontWeight: '700',
+    fontWeight: '800',
     marginBottom: 4,
   },
-  alertSubtitle: {
-    color: 'rgba(255,255,255,0.88)',
+  dispatchSubtitle: {
+    color: 'rgba(255,255,255,0.9)',
     fontSize: 13,
     lineHeight: 18,
   },
-  metricsGrid: {
+  statsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
     marginBottom: 22,
   },
-  metricCard: {
+  statCard: {
     backgroundColor: '#FFFFFF',
     borderColor: BORDER,
     borderRadius: 8,
@@ -518,7 +559,7 @@ const styles = StyleSheet.create({
     padding: 14,
     width: '48%',
   },
-  metricIcon: {
+  statIcon: {
     alignItems: 'center',
     borderRadius: 8,
     height: 42,
@@ -526,20 +567,20 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     width: 42,
   },
-  metricValue: {
+  statValue: {
     color: NAVY,
     fontSize: 28,
     fontWeight: '800',
   },
-  metricLabel: {
-    color: '#2D3748',
+  statLabel: {
+    color: TEXT,
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '700',
     marginTop: 2,
   },
-  metricTrend: {
+  statDetail: {
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: '800',
     marginTop: 8,
   },
   sectionHeader: {
@@ -552,14 +593,14 @@ const styles = StyleSheet.create({
   sectionTitle: {
     color: '#000000',
     fontSize: 22,
-    fontWeight: '700',
+    fontWeight: '800',
   },
   sectionAction: {
     color: RED,
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: '800',
   },
-  incidentCard: {
+  requestCard: {
     alignItems: 'flex-start',
     backgroundColor: '#FFFFFF',
     borderColor: BORDER,
@@ -569,7 +610,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     padding: 14,
   },
-  incidentIcon: {
+  requestIcon: {
     alignItems: 'center',
     borderRadius: 8,
     height: 48,
@@ -577,44 +618,33 @@ const styles = StyleSheet.create({
     marginRight: 12,
     width: 48,
   },
-  incidentDetails: {
+  requestDetails: {
     flex: 1,
   },
-  incidentTopRow: {
+  requestTopRow: {
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'space-between',
   },
-  incidentType: {
+  requestType: {
     color: NAVY,
     flex: 1,
     fontSize: 17,
-    fontWeight: '700',
+    fontWeight: '800',
     marginRight: 8,
   },
-  incidentTime: {
-    color: '#A0AEC0',
+  requestEta: {
+    color: FAINT,
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '800',
   },
-  requester: {
-    color: '#2D3748',
+  patientName: {
+    color: TEXT,
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '700',
     marginTop: 5,
   },
-  locationRow: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    marginTop: 6,
-  },
-  locationText: {
-    color: MUTED,
-    flex: 1,
-    fontSize: 13,
-    marginLeft: 4,
-  },
-  incidentActions: {
+  requestActions: {
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -628,33 +658,34 @@ const styles = StyleSheet.create({
   statusText: {
     color: '#FFFFFF',
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: '800',
   },
-  assignButton: {
+  primarySmallButton: {
     backgroundColor: NAVY,
     borderRadius: 8,
     paddingHorizontal: 18,
     paddingVertical: 9,
   },
-  assignButtonText: {
+  primarySmallButtonText: {
     color: '#FFFFFF',
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '800',
   },
-  responderList: {
+  teamList: {
     backgroundColor: '#FFFFFF',
     borderColor: BORDER,
     borderRadius: 8,
     borderWidth: 1,
+    marginBottom: 20,
   },
-  responderRow: {
+  teamRow: {
     alignItems: 'center',
     borderBottomColor: BORDER,
     borderBottomWidth: 1,
     flexDirection: 'row',
     padding: 14,
   },
-  responderAvatar: {
+  teamAvatar: {
     alignItems: 'center',
     backgroundColor: '#FFF5F5',
     borderRadius: 8,
@@ -663,30 +694,24 @@ const styles = StyleSheet.create({
     marginRight: 12,
     width: 42,
   },
-  responderText: {
+  teamText: {
     flex: 1,
   },
-  responderName: {
+  teamName: {
     color: NAVY,
     fontSize: 15,
-    fontWeight: '700',
+    fontWeight: '800',
   },
-  responderArea: {
+  teamArea: {
     color: MUTED,
     fontSize: 12,
     marginTop: 3,
   },
-  responderStatus: {
+  teamStatus: {
     fontSize: 12,
-    fontWeight: '800',
+    fontWeight: '900',
   },
-  available: {
-    color: '#00A86B',
-  },
-  onRoute: {
-    color: '#3182CE',
-  },
-  providerPanel: {
+  accessPanel: {
     backgroundColor: '#FFFFFF',
     borderColor: BORDER,
     borderRadius: 8,
@@ -719,38 +744,40 @@ const styles = StyleSheet.create({
   providerTypeText: {
     color: NAVY,
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '800',
     marginLeft: 6,
   },
   providerTypeTextActive: {
     color: '#FFFFFF',
   },
-  providerInput: {
+  accessInput: {
     backgroundColor: SURFACE,
     borderColor: BORDER,
     borderRadius: 8,
     borderWidth: 1,
-    color: '#1A202C',
+    color: TEXT,
     fontSize: 15,
     marginBottom: 10,
     minHeight: 48,
     paddingHorizontal: 13,
   },
-  createProviderButton: {
+  createAccessButton: {
     alignItems: 'center',
     backgroundColor: RED,
     borderRadius: 8,
+    flexDirection: 'row',
     height: 50,
     justifyContent: 'center',
     marginTop: 4,
   },
-  createProviderButtonDisabled: {
+  createAccessButtonDisabled: {
     opacity: 0.7,
   },
-  createProviderButtonText: {
+  createAccessButtonText: {
     color: '#FFFFFF',
     fontSize: 15,
-    fontWeight: '800',
+    fontWeight: '900',
+    marginLeft: 8,
   },
   bottomTabBar: {
     alignItems: 'center',
@@ -789,7 +816,7 @@ const styles = StyleSheet.create({
   },
   tabText: {
     fontSize: 11,
-    fontWeight: '600',
+    fontWeight: '700',
     marginTop: 4,
   },
 });
