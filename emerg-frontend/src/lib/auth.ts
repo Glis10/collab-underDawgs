@@ -58,6 +58,24 @@ type RegisterInput = {
   password: string;
 };
 
+export type EmergencyContact = {
+  id: string;
+  name: string;
+  relationship: string;
+  phoneNumber: string;
+  userId?: string | null;
+  isCommanContact?: boolean;
+  isCommonContact?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+type EmergencyContactInput = {
+  name: string;
+  relationship: string;
+  phoneNumber: string;
+};
+
 export const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL;
 
 let authToken: string | null = null;
@@ -214,5 +232,62 @@ export async function resetPassword(input: ResetPasswordInput): Promise<{ messag
   return apiRequestAllowEmpty<{ message?: string }>('/auth/reset-password', {
     method: 'POST',
     body: JSON.stringify(input),
+  });
+}
+
+function requireAuthToken() {
+  if (!authToken) {
+    throw new Error('Please sign in again before managing emergency contacts.');
+  }
+
+  return authToken;
+}
+
+export async function getEmergencyContacts(): Promise<EmergencyContact[]> {
+  const token = requireAuthToken();
+
+  return apiRequest<EmergencyContact[]>('/v1/emergency-contacts', {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+}
+
+export async function getCommonEmergencyContacts(): Promise<EmergencyContact[]> {
+  return apiRequest<EmergencyContact[]>('/v1/emergency-contacts/common/all', {
+    method: 'GET',
+  });
+}
+
+export async function createEmergencyContact(input: EmergencyContactInput): Promise<EmergencyContact> {
+  const token = requireAuthToken();
+  const normalizedPhoneNumber = normalizePhoneNumber(input.phoneNumber);
+
+  if (!input.name.trim() || !input.relationship.trim() || !normalizedPhoneNumber) {
+    throw new Error('Please enter a name, relationship, and valid phone number.');
+  }
+
+  return apiRequest<EmergencyContact>('/v1/emergency-contacts', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      name: input.name.trim(),
+      relationship: input.relationship.trim(),
+      phoneNumber: normalizedPhoneNumber,
+    }),
+  });
+}
+
+export async function deleteEmergencyContact(id: string): Promise<EmergencyContact> {
+  const token = requireAuthToken();
+
+  return apiRequest<EmergencyContact>(`/v1/emergency-contacts/${id}`, {
+    method: 'DELETE',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
   });
 }
