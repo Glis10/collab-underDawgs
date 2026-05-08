@@ -12,6 +12,7 @@ export default function RootLayout() {
       <Stack.Screen name="ResetPassword" />
       <Stack.Screen name="dashboard" />
       <Stack.Screen name="track-request" />
+      <Stack.Screen name="contacts" />
       <Stack.Screen name="admin-dashboard" />
       <Stack.Screen name="Terms" />
       <Stack.Screen name="(tabs)" />

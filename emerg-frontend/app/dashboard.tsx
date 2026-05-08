@@ -5,14 +5,19 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Href, useRouter } from 'expo-router';
 
 const trackRequestRoute = '/track-request' as Href;
+=======
+import { ContactsContent } from './contacts';
+
 
 export default function DashboardScreen() {
-  const router = useRouter();
   const [activeTab, setActiveTab] = useState('Home');
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      {activeTab === 'Contacts' ? (
+        <ContactsContent bottomSpacer={96} />
+      ) : (
+        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         
         {/* Header Logo */}
         <View style={styles.header}>
@@ -123,6 +128,7 @@ export default function DashboardScreen() {
         {/* Bottom padding to ensure content isn't hidden by tab bar */}
         <View style={{ height: 80 }} />
       </ScrollView>
+      )}
 
       {/* Custom Bottom Tab Bar */}
       <View style={styles.bottomTabBar}>
