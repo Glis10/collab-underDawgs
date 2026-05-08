@@ -1,3 +1,13 @@
+
+import React from 'react';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Image } from 'react-native';
+import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Href, useRouter } from 'expo-router';
+import { AppBottomNav } from '@/components/app-bottom-nav';
+
+const trackRequestRoute = '/track-request' as Href;
+
 import { AppBottomNav } from '@/components/app-bottom-nav';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { Href, useRouter } from 'expo-router';
@@ -105,6 +115,10 @@ export default function DashboardScreen() {
             <Ionicons name="navigate-circle-outline" size={18} color={NAVY} />
             <Text style={styles.utilityText}>Track Active</Text>
           </TouchableOpacity>
+
+          <TouchableOpacity style={styles.gridItem} onPress={() => router.replace(trackRequestRoute)}>
+            <Ionicons name="navigate" size={40} color="#E63946" />
+
         </View>
 
         <View style={styles.sectionHeader}>
@@ -124,6 +138,7 @@ export default function DashboardScreen() {
             <View style={styles.gridIcon}>
               <Ionicons name="navigate" size={31} color={RED} />
             </View>
+
             <Text style={styles.gridItemText}>Track Request</Text>
           </TouchableOpacity>
         </View>
@@ -453,4 +468,8 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
+
 });
+
+});
+
