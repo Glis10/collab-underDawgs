@@ -9,6 +9,7 @@ const routes = {
   Home: '/dashboard' as Href,
   Contacts: '/contacts' as Href,
   Track: '/track-request' as Href,
+  Settings: '/settings' as Href,
 };
 
 type AppTab = 'Home' | 'Contacts' | 'Track' | 'Settings';
@@ -32,7 +33,7 @@ export function AppBottomNav({ activeTab }: AppBottomNavProps) {
   const router = useRouter();
 
   const handlePress = (tab: AppTab) => {
-    if (tab === activeTab || tab === 'Settings') {
+    if (tab === activeTab) {
       return;
     }
 
