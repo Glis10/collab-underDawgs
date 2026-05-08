@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { Href, useRouter } from 'expo-router';
+import { AppBottomNav } from '@/components/app-bottom-nav';
 import {
   createEmergencyContact,
   deleteEmergencyContact,
@@ -21,8 +21,6 @@ import {
   getCommonEmergencyContacts,
   getEmergencyContacts,
 } from '@/src/lib/auth';
-
-const dashboardRoute = '/dashboard' as Href;
 
 type ContactsContentProps = {
   bottomSpacer?: number;
@@ -272,42 +270,11 @@ export function ContactsContent({ bottomSpacer = 96 }: ContactsContentProps) {
 }
 
 export default function ContactsScreen() {
-  const router = useRouter();
-  const [activeTab, setActiveTab] = useState('Contacts');
-
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <ContactsContent bottomSpacer={96} />
 
-      <View style={styles.bottomTabBar}>
-        <TouchableOpacity style={styles.tabItem} onPress={() => router.replace(dashboardRoute)}>
-          <View style={activeTab === 'Home' ? styles.activeTabBg : styles.inactiveTabBg}>
-            <Ionicons name="home" size={24} color={activeTab === 'Home' ? '#E63946' : '#FFFFFF'} />
-            <Text style={[styles.tabText, { color: activeTab === 'Home' ? '#E63946' : '#FFFFFF' }]}>Home</Text>
-          </View>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.tabItem} onPress={() => setActiveTab('Contacts')}>
-          <View style={activeTab === 'Contacts' ? styles.activeTabBg : styles.inactiveTabBg}>
-            <Ionicons name="call" size={24} color={activeTab === 'Contacts' ? '#E63946' : '#FFFFFF'} />
-            <Text style={[styles.tabText, { color: activeTab === 'Contacts' ? '#E63946' : '#FFFFFF' }]}>Contacts</Text>
-          </View>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.tabItem} onPress={() => setActiveTab('Track')}>
-          <View style={activeTab === 'Track' ? styles.activeTabBg : styles.inactiveTabBg}>
-            <Ionicons name="map" size={24} color={activeTab === 'Track' ? '#E63946' : '#FFFFFF'} />
-            <Text style={[styles.tabText, { color: activeTab === 'Track' ? '#E63946' : '#FFFFFF' }]}>Track</Text>
-          </View>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.tabItem} onPress={() => setActiveTab('Settings')}>
-          <View style={activeTab === 'Settings' ? styles.activeTabBg : styles.inactiveTabBg}>
-            <Ionicons name="settings" size={24} color={activeTab === 'Settings' ? '#E63946' : '#FFFFFF'} />
-            <Text style={[styles.tabText, { color: activeTab === 'Settings' ? '#E63946' : '#FFFFFF' }]}>Settings</Text>
-          </View>
-        </TouchableOpacity>
-      </View>
+      <AppBottomNav activeTab="Contacts" />
     </SafeAreaView>
   );
 }
@@ -468,43 +435,5 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginTop: 8,
     textAlign: 'center',
-  },
-  bottomTabBar: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: 80,
-    backgroundColor: '#E63946',
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
-    paddingBottom: 20,
-    paddingTop: 10,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-  },
-  tabItem: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  activeTabBg: {
-    backgroundColor: '#FFFFFF',
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  inactiveTabBg: {
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  tabText: {
-    fontSize: 12,
-    marginTop: 4,
-    fontWeight: '500',
   },
 });

@@ -1,8 +1,13 @@
 import { Stack } from 'expo-router';
 
+const stackScreenOptions = {
+  headerShown: false,
+  animation: 'none' as const,
+};
+
 export default function RootLayout() {
   return (
-    <Stack screenOptions={{ headerShown: false }}>
+    <Stack screenOptions={stackScreenOptions}>
       <Stack.Screen name="index" />
       <Stack.Screen name="UserSignIn" />
       <Stack.Screen name="AdminSignIn" />

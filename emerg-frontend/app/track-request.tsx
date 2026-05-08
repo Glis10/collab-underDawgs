@@ -10,12 +10,12 @@ import {
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { Href, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { AppBottomNav } from '@/components/app-bottom-nav';
 
 const RED = '#E63946';
 const NAVY = '#1A365D';
 const GREEN = '#00A86B';
 const BLUE = '#3182CE';
-const YELLOW = '#ECC94B';
 const MUTED = '#718096';
 const FAINT = '#A0AEC0';
 const BORDER = '#E2E8F0';
@@ -23,52 +23,10 @@ const SURFACE = '#F7FAFC';
 
 const dashboardRoute = '/dashboard' as Href;
 
-const responseSteps = [
-  {
-    title: 'Request confirmed',
-    time: '9:41 PM',
-    detail: 'Emergency desk verified your ambulance request.',
-    icon: 'checkmark-done-circle',
-    color: GREEN,
-    isComplete: true,
-  },
-  {
-    title: 'Provider assigned',
-    time: '9:43 PM',
-    detail: 'Ambulance A-04 accepted the dispatch.',
-    icon: 'person-circle',
-    color: BLUE,
-    isComplete: true,
-  },
-  {
-    title: 'Provider on the way',
-    time: 'Now',
-    detail: 'Responder is moving toward your shared location.',
-    icon: 'navigate-circle',
-    color: RED,
-    isComplete: false,
-  },
-  {
-    title: 'Arriving soon',
-    time: 'ETA 6 min',
-    detail: 'Keep your phone nearby for provider calls.',
-    icon: 'location',
-    color: YELLOW,
-    isComplete: false,
-  },
-] as const satisfies readonly {
-  title: string;
-  time: string;
-  detail: string;
-  icon: keyof typeof Ionicons.glyphMap;
-  color: string;
-  isComplete: boolean;
-}[];
-
 const providerDetails = [
   { label: 'Unit', value: 'Ambulance A-04', icon: 'ambulance' },
-  { label: 'Responder', value: 'Dr. Suman Rai', icon: 'account-heart-outline' },
-  { label: 'Distance', value: '1.8 km away', icon: 'map-marker-distance' },
+  { label: 'ETA', value: '6 min', icon: 'clock-fast' },
+  { label: 'Distance', value: '1.8 km', icon: 'map-marker-distance' },
 ] as const satisfies readonly {
   label: string;
   value: string;
@@ -82,11 +40,8 @@ export default function TrackRequestScreen() {
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
-          <TouchableOpacity style={styles.iconButton} activeOpacity={0.75} onPress={() => router.back()}>
-            <Ionicons name="chevron-back" size={24} color={NAVY} />
-          </TouchableOpacity>
           <Image source={require('../assets/logo.png')} style={styles.logo} resizeMode="contain" />
-          <TouchableOpacity style={styles.iconButton} activeOpacity={0.75}>
+          <TouchableOpacity style={styles.callButton} activeOpacity={0.75}>
             <Ionicons name="call-outline" size={22} color={RED} />
           </TouchableOpacity>
         </View>
@@ -97,9 +52,9 @@ export default function TrackRequestScreen() {
               <MaterialCommunityIcons name="ambulance" size={38} color="#FFFFFF" />
             </View>
             <View style={styles.statusTextWrap}>
-              <Text style={styles.statusEyebrow}>Confirmed request</Text>
+              <Text style={styles.statusEyebrow}>Live tracking</Text>
               <Text style={styles.statusTitle}>Provider is on the way</Text>
-              <Text style={styles.statusSubtitle}>Ambulance dispatch accepted at 9:43 PM.</Text>
+              <Text style={styles.statusSubtitle}>Ambulance A-04 is heading to your shared location.</Text>
             </View>
           </View>
 
@@ -145,43 +100,6 @@ export default function TrackRequestScreen() {
           ))}
         </View>
 
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Request Progress</Text>
-          <Text style={styles.requestId}>#ER-2041</Text>
-        </View>
-
-        <View style={styles.timeline}>
-          {responseSteps.map((step, index) => (
-            <View key={step.title} style={styles.timelineRow}>
-              <View style={styles.timelineLeft}>
-                <View style={[styles.stepIcon, { backgroundColor: step.color }]}>
-                  <Ionicons name={step.icon} size={20} color="#FFFFFF" />
-                </View>
-                {index < responseSteps.length - 1 && (
-                  <View style={[styles.stepConnector, step.isComplete && styles.stepConnectorComplete]} />
-                )}
-              </View>
-              <View style={styles.stepContent}>
-                <View style={styles.stepTopRow}>
-                  <Text style={styles.stepTitle}>{step.title}</Text>
-                  <Text style={styles.stepTime}>{step.time}</Text>
-                </View>
-                <Text style={styles.stepDetail}>{step.detail}</Text>
-              </View>
-            </View>
-          ))}
-        </View>
-
-        <View style={styles.safetyPanel}>
-          <View style={styles.safetyIcon}>
-            <Ionicons name="shield-checkmark-outline" size={23} color={NAVY} />
-          </View>
-          <View style={styles.safetyTextWrap}>
-            <Text style={styles.safetyTitle}>Stay visible and reachable</Text>
-            <Text style={styles.safetyText}>Keep the entrance clear and answer calls from the responder team.</Text>
-          </View>
-        </View>
-
         <View style={styles.actionRow}>
           <TouchableOpacity style={styles.secondaryAction} activeOpacity={0.8}>
             <Ionicons name="call-outline" size={18} color={RED} />
@@ -193,8 +111,10 @@ export default function TrackRequestScreen() {
           </TouchableOpacity>
         </View>
 
-        <View style={{ height: 26 }} />
+        <View style={{ height: 96 }} />
       </ScrollView>
+
+      <AppBottomNav activeTab="Track" />
     </SafeAreaView>
   );
 }
@@ -212,10 +132,10 @@ const styles = StyleSheet.create({
   header: {
     alignItems: 'center',
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
     marginBottom: 18,
   },
-  iconButton: {
+  callButton: {
     alignItems: 'center',
     backgroundColor: SURFACE,
     borderColor: BORDER,
@@ -223,6 +143,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     height: 44,
     justifyContent: 'center',
+    position: 'absolute',
+    right: 0,
     width: 44,
   },
   logo: {
@@ -419,115 +341,6 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     lineHeight: 17,
     marginTop: 4,
-  },
-  sectionHeader: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-  },
-  sectionTitle: {
-    color: '#000000',
-    fontSize: 22,
-    fontWeight: '900',
-  },
-  requestId: {
-    color: RED,
-    fontSize: 13,
-    fontWeight: '900',
-  },
-  timeline: {
-    backgroundColor: '#FFFFFF',
-    borderColor: BORDER,
-    borderRadius: 8,
-    borderWidth: 1,
-    marginBottom: 16,
-    padding: 14,
-  },
-  timelineRow: {
-    flexDirection: 'row',
-    minHeight: 82,
-  },
-  timelineLeft: {
-    alignItems: 'center',
-    marginRight: 12,
-    width: 34,
-  },
-  stepIcon: {
-    alignItems: 'center',
-    borderRadius: 17,
-    height: 34,
-    justifyContent: 'center',
-    width: 34,
-  },
-  stepConnector: {
-    backgroundColor: BORDER,
-    flex: 1,
-    marginVertical: 6,
-    width: 2,
-  },
-  stepConnectorComplete: {
-    backgroundColor: GREEN,
-  },
-  stepContent: {
-    flex: 1,
-    paddingBottom: 16,
-  },
-  stepTopRow: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  stepTitle: {
-    color: NAVY,
-    flex: 1,
-    fontSize: 16,
-    fontWeight: '900',
-    marginRight: 8,
-  },
-  stepTime: {
-    color: FAINT,
-    fontSize: 12,
-    fontWeight: '900',
-  },
-  stepDetail: {
-    color: MUTED,
-    fontSize: 13,
-    lineHeight: 18,
-    marginTop: 5,
-  },
-  safetyPanel: {
-    alignItems: 'center',
-    backgroundColor: '#EBF8FF',
-    borderColor: '#BEE3F8',
-    borderRadius: 8,
-    borderWidth: 1,
-    flexDirection: 'row',
-    marginBottom: 16,
-    padding: 14,
-  },
-  safetyIcon: {
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 8,
-    height: 42,
-    justifyContent: 'center',
-    marginRight: 12,
-    width: 42,
-  },
-  safetyTextWrap: {
-    flex: 1,
-  },
-  safetyTitle: {
-    color: NAVY,
-    fontSize: 15,
-    fontWeight: '900',
-  },
-  safetyText: {
-    color: MUTED,
-    fontSize: 13,
-    lineHeight: 18,
-    marginTop: 3,
   },
   actionRow: {
     flexDirection: 'row',

@@ -1,23 +1,18 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Image } from 'react-native';
 import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Href, useRouter } from 'expo-router';
+import { AppBottomNav } from '@/components/app-bottom-nav';
 
 const trackRequestRoute = '/track-request' as Href;
-=======
-import { ContactsContent } from './contacts';
-
 
 export default function DashboardScreen() {
-  const [activeTab, setActiveTab] = useState('Home');
+  const router = useRouter();
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
-      {activeTab === 'Contacts' ? (
-        <ContactsContent bottomSpacer={96} />
-      ) : (
-        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         
         {/* Header Logo */}
         <View style={styles.header}>
@@ -65,7 +60,7 @@ export default function DashboardScreen() {
             <MaterialCommunityIcons name="fire" size={40} color="#E63946" />
             <Text style={styles.gridItemText}>Fire Rescue</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.gridItem} onPress={() => router.push(trackRequestRoute)}>
+          <TouchableOpacity style={styles.gridItem} onPress={() => router.replace(trackRequestRoute)}>
             <Ionicons name="navigate" size={40} color="#E63946" />
             <Text style={styles.gridItemText}>Track Request</Text>
           </TouchableOpacity>
@@ -128,44 +123,8 @@ export default function DashboardScreen() {
         {/* Bottom padding to ensure content isn't hidden by tab bar */}
         <View style={{ height: 80 }} />
       </ScrollView>
-      )}
 
-      {/* Custom Bottom Tab Bar */}
-      <View style={styles.bottomTabBar}>
-        <TouchableOpacity style={styles.tabItem} onPress={() => setActiveTab('Home')}>
-          <View style={activeTab === 'Home' ? styles.activeTabBg : styles.inactiveTabBg}>
-            <Ionicons name="home" size={24} color={activeTab === 'Home' ? "#E63946" : "#FFFFFF"} />
-            <Text style={[styles.tabText, { color: activeTab === 'Home' ? "#E63946" : "#FFFFFF" }]}>Home</Text>
-          </View>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.tabItem} onPress={() => setActiveTab('Contacts')}>
-          <View style={activeTab === 'Contacts' ? styles.activeTabBg : styles.inactiveTabBg}>
-            <Ionicons name="call" size={24} color={activeTab === 'Contacts' ? "#E63946" : "#FFFFFF"} />
-            <Text style={[styles.tabText, { color: activeTab === 'Contacts' ? "#E63946" : "#FFFFFF" }]}>Contacts</Text>
-          </View>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.tabItem}
-          onPress={() => {
-            setActiveTab('Track');
-            router.push(trackRequestRoute);
-          }}
-        >
-          <View style={activeTab === 'Track' ? styles.activeTabBg : styles.inactiveTabBg}>
-            <Ionicons name="map" size={24} color={activeTab === 'Track' ? "#E63946" : "#FFFFFF"} />
-            <Text style={[styles.tabText, { color: activeTab === 'Track' ? "#E63946" : "#FFFFFF" }]}>Track</Text>
-          </View>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.tabItem} onPress={() => setActiveTab('Settings')}>
-          <View style={activeTab === 'Settings' ? styles.activeTabBg : styles.inactiveTabBg}>
-            <Ionicons name="settings" size={24} color={activeTab === 'Settings' ? "#E63946" : "#FFFFFF"} />
-            <Text style={[styles.tabText, { color: activeTab === 'Settings' ? "#E63946" : "#FFFFFF" }]}>Settings</Text>
-          </View>
-        </TouchableOpacity>
-      </View>
+      <AppBottomNav activeTab="Home" />
     </SafeAreaView>
   );
 }
@@ -329,43 +288,5 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 12,
     fontWeight: '600',
-  },
-  bottomTabBar: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: 80,
-    backgroundColor: '#E63946',
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
-    paddingBottom: 20, // for safe area
-    paddingTop: 10,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-  },
-  tabItem: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  activeTabBg: {
-    backgroundColor: '#FFFFFF',
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  inactiveTabBg: {
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  tabText: {
-    fontSize: 12,
-    marginTop: 4,
-    fontWeight: '500',
   },
 });
