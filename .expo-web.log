@@ -1,0 +1,39 @@
+
+> emerg-frontend@1.0.0 web
+> expo start --web --port 8081
+
+env: load .env
+env: export EXPO_PUBLIC_API_BASE_URL REACT_NATIVE_PACKAGER_HOSTNAME
+Starting project at C:\Users\Nitro\OneDrive\ドキュメント\collab-underDawgs\emerg-frontend
+React Compiler enabled
+Starting Metro Bundler
+Waiting on http://localhost:8081
+Logs for your project will appear below.
+Web node_modules\expo-router\entry.js ▓▓▓░░░░░░░░░░░░░ 19.4% (110/262)
+λ node_modules\expo-router\node\render.js ▓▓░░░░░░░░░░░░░░ 17.3% (130/313)
+Web node_modules\expo-router\entry.js ▓▓▓░░░░░░░░░░░░░ 19.4% (110/262)
+λ node_modules\expo-router\node\render.js ▓▓▓▓▓░░░░░░░░░░░ 32.7% (248/434)
+Web node_modules\expo-router\entry.js ▓▓▓▓▓▓░░░░░░░░░░ 40.3% (262/424)
+λ node_modules\expo-router\node\render.js ▓▓▓▓▓▓░░░░░░░░░░ 41.6% (313/485)
+Web node_modules\expo-router\entry.js ▓▓▓▓▓▓▓▓▓░░░░░░░ 56.6% (419/557)
+λ node_modules\expo-router\node\render.js ▓▓▓▓▓▓▓▓▓▓░░░░░░ 68.7% (495/597)
+Web node_modules\expo-router\entry.js ▓▓▓▓▓▓▓▓▓▓░░░░░░ 68.2% (553/676)
+λ node_modules\expo-router\node\render.js ▓▓▓▓▓▓▓▓▓▓▓░░░░░ 73.1% (629/803)
+Web node_modules\expo-router\entry.js ▓▓▓▓▓▓▓▓▓▓▓░░░░░ 73.3% (672/816)
+λ node_modules\expo-router\node\render.js ▓▓▓▓▓▓▓▓▓▓▓░░░░░ 73.3% (755/905)
+Web node_modules\expo-router\entry.js ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░ 95.4% (1138/1165)
+λ node_modules\expo-router\node\render.js ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░ 95.6% (1175/1202)
+λ Bundled 26252ms node_modules\expo-router\node\render.js (1235 modules)
+Web node_modules\expo-router\entry.js ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░ 99.9% (1225/1225)
+Web Bundled 32265ms node_modules\expo-router\entry.js (1225 modules)
+Web node_modules\expo-router\entry.js ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░ 99.9% (1225/1225)
+Web node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+λ Bundled 207ms node_modules\expo-router\node\render.js (1 module)
+Web node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web Bundled 4680ms node_modules\expo-router\entry.js (1 module)
+Web node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web node_modules\expo-router\entry.js ▓▓▓▓▓░░░░░░░░░░░ 36.0% ( 70/233)
+Web node_modules\expo-router\entry.js ▓▓▓▓▓░░░░░░░░░░░ 36.0% (256/524)
+Web node_modules\expo-router\entry.js ▓▓▓▓▓▓▓▓▓▓▓▓░░░░ 77.9% (872/988)
+Web Bundled 12739ms node_modules\expo-router\entry.js (1226 modules)
+ LOG  [web] Logs will appear in the browser console
