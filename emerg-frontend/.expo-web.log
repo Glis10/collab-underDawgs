@@ -1,0 +1,32 @@
+
+> emerg-frontend@1.0.0 web
+> expo start --web --port 8081
+
+env: load .env
+env: export EXPO_PUBLIC_API_BASE_URL REACT_NATIVE_PACKAGER_HOSTNAME
+Starting project at C:\Users\Nitro\OneDrive\ドキュメント\collab-underDawgs\emerg-frontend
+React Compiler enabled
+Starting Metro Bundler
+Waiting on http://localhost:8081
+Logs for your project will appear below.
+Web node_modules\expo-router\entry.js ▓░░░░░░░░░░░░░░░  9.0% ( 3/10)
+λ node_modules\expo-router\node\render.js ░░░░░░░░░░░░░░░░  5.2% ( 11/108)
+Web node_modules\expo-router\entry.js ▓▓▓▓░░░░░░░░░░░░ 25.0% ( 73/194)
+λ node_modules\expo-router\node\render.js ▓▓▓▓▓▓▓░░░░░░░░░ 43.8% (333/503)
+Web node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+λ node_modules\expo-router\node\render.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web node_modules\expo-router\entry.js ▓▓▓▓▓▓▓▓░░░░░░░░ 53.3% (434/601)
+λ node_modules\expo-router\node\render.js ▓▓▓▓▓▓▓▓▓▓▓▓░░░░ 77.2% (765/890)
+Web node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+λ node_modules\expo-router\node\render.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web node_modules\expo-router\entry.js ▓▓▓▓▓▓▓▓▓▓▓▓▓░░░ 84.3% ( 975/1062)
+λ node_modules\expo-router\node\render.js ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░ 95.5% (1104/1130)
+Web node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+λ node_modules\expo-router\node\render.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+λ Bundled 13939ms node_modules\expo-router\node\render.js (1165 modules)
+λ Bundled 9329ms node_modules\expo-router\node\render.js (1 module)
+Web Bundled 16204ms node_modules\expo-router\entry.js (1222 modules)
+Web Bundled 11570ms node_modules\expo-router\entry.js (1 module)
+Web node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+λ Bundled 47ms node_modules\expo-router\node\render.js (1 module)
+Web Bundled 628ms node_modules\expo-router\entry.js (1 module)

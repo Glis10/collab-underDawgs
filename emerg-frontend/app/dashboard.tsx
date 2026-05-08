@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Image, SafeAreaView as RNSafeAreaView } from 'react-native';
-import { MaterialCommunityIcons, MaterialIcons, Ionicons } from '@expo/vector-icons';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Image } from 'react-native';
+import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { Href, useRouter } from 'expo-router';
+
+const trackRequestRoute = '/track-request' as Href;
 
 export default function DashboardScreen() {
   const router = useRouter();
@@ -58,7 +60,7 @@ export default function DashboardScreen() {
             <MaterialCommunityIcons name="fire" size={40} color="#E63946" />
             <Text style={styles.gridItemText}>Fire Rescue</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.gridItem}>
+          <TouchableOpacity style={styles.gridItem} onPress={() => router.push(trackRequestRoute)}>
             <Ionicons name="navigate" size={40} color="#E63946" />
             <Text style={styles.gridItemText}>Track Request</Text>
           </TouchableOpacity>
@@ -138,7 +140,13 @@ export default function DashboardScreen() {
           </View>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.tabItem} onPress={() => setActiveTab('Track')}>
+        <TouchableOpacity
+          style={styles.tabItem}
+          onPress={() => {
+            setActiveTab('Track');
+            router.push(trackRequestRoute);
+          }}
+        >
           <View style={activeTab === 'Track' ? styles.activeTabBg : styles.inactiveTabBg}>
             <Ionicons name="map" size={24} color={activeTab === 'Track' ? "#E63946" : "#FFFFFF"} />
             <Text style={[styles.tabText, { color: activeTab === 'Track' ? "#E63946" : "#FFFFFF" }]}>Track</Text>
