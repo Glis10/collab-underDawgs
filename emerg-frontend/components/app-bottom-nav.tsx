@@ -33,13 +33,9 @@ export function AppBottomNav({ activeTab }: AppBottomNavProps) {
   const router = useRouter();
 
   const handlePress = (tab: AppTab) => {
-
-    if (tab === activeTab) {
-
     const route = routes[tab];
 
     if (!route || tab === activeTab) {
-
       return;
     }
 
