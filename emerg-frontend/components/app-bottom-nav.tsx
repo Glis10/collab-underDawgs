@@ -11,6 +11,7 @@ const routes: Partial<Record<AppTab, Href>> = {
   Home: '/dashboard' as Href,
   Contacts: '/contacts' as Href,
   Track: '/track-request' as Href,
+  Settings: '/settings' as Href,
 };
 
 const tabs = [
@@ -32,9 +33,13 @@ export function AppBottomNav({ activeTab }: AppBottomNavProps) {
   const router = useRouter();
 
   const handlePress = (tab: AppTab) => {
+
+    if (tab === activeTab) {
+
     const route = routes[tab];
 
     if (!route || tab === activeTab) {
+
       return;
     }
 
