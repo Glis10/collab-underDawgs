@@ -21,6 +21,7 @@ import {
   getCommonEmergencyContacts,
   getEmergencyContacts,
 } from '@/src/lib/auth';
+import { useAppPreferences } from '@/src/lib/app-preferences';
 
 type ContactsContentProps = {
   bottomSpacer?: number;
@@ -51,6 +52,7 @@ const fallbackServiceNumbers: EmergencyContact[] = [
 ];
 
 export function ContactsContent({ bottomSpacer = 96 }: ContactsContentProps) {
+  const { darkMode, t } = useAppPreferences();
   const [contacts, setContacts] = useState<EmergencyContact[]>([]);
   const [commonContacts, setCommonContacts] = useState<EmergencyContact[]>([]);
   const [name, setName] = useState('');
@@ -144,13 +146,13 @@ export function ContactsContent({ bottomSpacer = 96 }: ContactsContentProps) {
   };
 
   const renderContact = (contact: EmergencyContact, canDelete = false) => (
-    <View key={contact.id} style={styles.contactCard}>
+    <View key={contact.id} style={[styles.contactCard, darkMode && styles.cardDark]}>
       <View style={styles.contactIcon}>
         <Ionicons name={canDelete ? 'person' : 'business'} size={22} color="#E63946" />
       </View>
 
       <View style={styles.contactContent}>
-        <Text style={styles.contactName}>{contact.name}</Text>
+        <Text style={[styles.contactName, darkMode && styles.textDark]}>{contact.name}</Text>
         <Text style={styles.contactMeta}>{contact.relationship}</Text>
         <Text style={styles.contactNumber}>{contact.phoneNumber}</Text>
       </View>
@@ -177,18 +179,18 @@ export function ContactsContent({ bottomSpacer = 96 }: ContactsContentProps) {
 
   if (isLoading) {
     return (
-      <View style={[styles.contentContainer, styles.centered]}>
+      <View style={[styles.contentContainer, darkMode && styles.contentContainerDark, styles.centered]}>
         <ActivityIndicator color="#E63946" size="large" />
       </View>
     );
   }
 
   return (
-    <View style={styles.contentContainer}>
-      <View style={styles.header}>
+    <View style={[styles.contentContainer, darkMode && styles.contentContainerDark]}>
+      <View style={[styles.header, darkMode && styles.headerDark]}>
         <View>
-          <Text style={styles.title}>Emergency Contacts</Text>
-          <Text style={styles.subtitle}>Store numbers you may need fast</Text>
+          <Text style={[styles.title, darkMode && styles.textDark]}>{t('emergencyContacts')}</Text>
+          <Text style={styles.subtitle}>{t('contactsSubtitle')}</Text>
         </View>
       </View>
 
@@ -197,14 +199,14 @@ export function ContactsContent({ bottomSpacer = 96 }: ContactsContentProps) {
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} />}
       >
-        <View style={styles.formPanel}>
-          <Text style={styles.sectionTitle}>Add service number</Text>
+        <View style={[styles.formPanel, darkMode && styles.cardDark]}>
+          <Text style={[styles.sectionTitle, darkMode && styles.textDark]}>{t('addServiceNumber')}</Text>
 
           <View style={styles.inputGroup}>
             <MaterialCommunityIcons name="account" size={20} color="#718096" />
             <TextInput
               style={styles.input}
-              placeholder="Name"
+              placeholder={t('name')}
               placeholderTextColor="#A0AEC0"
               value={name}
               onChangeText={setName}
@@ -215,7 +217,7 @@ export function ContactsContent({ bottomSpacer = 96 }: ContactsContentProps) {
             <MaterialCommunityIcons name="shield-account" size={20} color="#718096" />
             <TextInput
               style={styles.input}
-              placeholder="Service type"
+              placeholder={t('serviceType')}
               placeholderTextColor="#A0AEC0"
               value={relationship}
               onChangeText={setRelationship}
@@ -226,7 +228,7 @@ export function ContactsContent({ bottomSpacer = 96 }: ContactsContentProps) {
             <MaterialCommunityIcons name="phone" size={20} color="#718096" />
             <TextInput
               style={styles.input}
-              placeholder="Phone number"
+              placeholder={t('phoneNumber')}
               placeholderTextColor="#A0AEC0"
               keyboardType="phone-pad"
               value={phoneNumber}
@@ -240,25 +242,25 @@ export function ContactsContent({ bottomSpacer = 96 }: ContactsContentProps) {
             ) : (
               <>
                 <Ionicons name="add" size={20} color="#FFFFFF" />
-                <Text style={styles.saveButtonText}>Save Contact</Text>
+                <Text style={styles.saveButtonText}>{t('saveContact')}</Text>
               </>
             )}
           </TouchableOpacity>
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Emergency services</Text>
+          <Text style={[styles.sectionTitle, darkMode && styles.textDark]}>{t('emergencyServices')}</Text>
           {serviceContacts.map((contact) => renderContact(contact))}
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>My saved numbers</Text>
+          <Text style={[styles.sectionTitle, darkMode && styles.textDark]}>{t('mySavedNumbers')}</Text>
           {contacts.length > 0 ? (
             contacts.map((contact) => renderContact(contact, true))
           ) : (
             <View style={styles.emptyState}>
               <Ionicons name="call-outline" size={28} color="#A0AEC0" />
-              <Text style={styles.emptyText}>No saved emergency contacts yet.</Text>
+              <Text style={styles.emptyText}>{t('noSavedContacts')}</Text>
             </View>
           )}
         </View>
@@ -270,8 +272,10 @@ export function ContactsContent({ bottomSpacer = 96 }: ContactsContentProps) {
 }
 
 export default function ContactsScreen() {
+  const { darkMode } = useAppPreferences();
+
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={[styles.container, darkMode && styles.containerDark]} edges={['top', 'left', 'right']}>
       <ContactsContent bottomSpacer={96} />
 
       <AppBottomNav activeTab="Contacts" />
@@ -284,9 +288,15 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#FFFFFF',
   },
+  containerDark: {
+    backgroundColor: '#050505',
+  },
   contentContainer: {
     flex: 1,
     backgroundColor: '#FFFFFF',
+  },
+  contentContainerDark: {
+    backgroundColor: '#050505',
   },
   centered: {
     alignItems: 'center',
@@ -298,6 +308,9 @@ const styles = StyleSheet.create({
     paddingBottom: 18,
     borderBottomWidth: 1,
     borderBottomColor: '#EDF2F7',
+  },
+  headerDark: {
+    borderBottomColor: '#2A2A2A',
   },
   title: {
     color: '#1A365D',
@@ -372,6 +385,13 @@ const styles = StyleSheet.create({
     padding: 12,
     marginBottom: 10,
     backgroundColor: '#FFFFFF',
+  },
+  cardDark: {
+    backgroundColor: '#121212',
+    borderColor: '#2A2A2A',
+  },
+  textDark: {
+    color: '#F9FAFB',
   },
   contactIcon: {
     width: 42,
