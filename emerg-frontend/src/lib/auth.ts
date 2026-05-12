@@ -79,6 +79,7 @@ type EmergencyContactInput = {
 export const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL;
 
 let authToken: string | null = null;
+let currentUser: AuthUser | null = null;
 
 function normalizePhoneNumber(phoneNumber: string) {
   return phoneNumber.replace(/\D/g, '');
@@ -188,8 +189,18 @@ export async function loginUser(input: LoginInput): Promise<AuthPayload> {
   });
 
   authToken = payload.token;
+  currentUser = payload.user;
 
   return payload;
+}
+
+export function getCurrentUser() {
+  return currentUser;
+}
+
+export function logoutUser() {
+  authToken = null;
+  currentUser = null;
 }
 
 export async function createServiceProviderCredentials(input: ServiceProviderInput): Promise<ServiceProviderPayload> {
