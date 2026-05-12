@@ -1,23 +1,27 @@
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { Href, useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import { Href, useFocusEffect, useNavigation, useRouter } from 'expo-router';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   Alert,
+  BackHandler,
   ScrollView,
   StyleSheet,
   Switch,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AppBottomNav } from '@/components/app-bottom-nav';
-import { getCurrentUser, logoutUser } from '@/src/lib/auth';
+import { getCurrentUser, logoutUser, updateCurrentUserName } from '@/src/lib/auth';
+import { useAppPreferences } from '@/src/lib/app-preferences';
 
 const RED = '#E63946';
 const BORDER = '#E2E8F0';
 const LIGHT_RED = '#FFF1F2';
 const signInRoute = '/UserSignIn' as Href;
+const changePasswordRoute = '/change-password' as Href;
 
 type SettingRowProps = {
   icon: keyof typeof Ionicons.glyphMap;
@@ -29,6 +33,7 @@ type SettingRowProps = {
 
 function SettingRow({ icon, label, value, onValueChange, onPress }: SettingRowProps) {
   const isSwitch = typeof value === 'boolean';
+  const { darkMode } = useAppPreferences();
 
   return (
     <TouchableOpacity
@@ -41,7 +46,7 @@ function SettingRow({ icon, label, value, onValueChange, onPress }: SettingRowPr
         <View style={styles.rowIconWrap}>
           <Ionicons name={icon} size={18} color={RED} />
         </View>
-        <Text style={styles.settingLabel}>{label}</Text>
+        <Text style={[styles.settingLabel, darkMode && styles.textDark]}>{label}</Text>
       </View>
 
       {isSwitch ? (
@@ -53,7 +58,7 @@ function SettingRow({ icon, label, value, onValueChange, onPress }: SettingRowPr
           ios_backgroundColor="#A0AEC0"
         />
       ) : (
-        <Ionicons name="chevron-forward" size={22} color="#111827" />
+        <Ionicons name="chevron-forward" size={22} color={darkMode ? '#F9FAFB' : '#111827'} />
       )}
     </TouchableOpacity>
   );
@@ -61,91 +66,168 @@ function SettingRow({ icon, label, value, onValueChange, onPress }: SettingRowPr
 
 export default function SettingsScreen() {
   const router = useRouter();
+  const navigation = useNavigation();
   const currentUser = getCurrentUser();
-  const [personalDarkMode, setPersonalDarkMode] = useState(true);
-  const [preferenceDarkMode, setPreferenceDarkMode] = useState(true);
+  const { darkMode, language, setDarkMode, setLanguage, t } = useAppPreferences();
   const [notifications, setNotifications] = useState(true);
-  const [nepali, setNepali] = useState(false);
+  const [isEditingName, setIsEditingName] = useState(false);
 
-  const displayName = currentUser?.name || 'Pujan Singh';
+  const [savedName, setSavedName] = useState(currentUser?.name || 'User');
+  const displayName = savedName;
   const displayEmail = currentUser?.email || 'teacher@heraldcollege.np';
+  const [draftName, setDraftName] = useState(displayName);
 
-  const handleLogout = () => {
-    logoutUser();
-    router.replace(signInRoute);
-  };
+  const confirmLogout = useCallback(() => {
+    Alert.alert(t('logoutConfirmTitle'), t('logoutConfirmMessage'), [
+      {
+        text: t('cancel'),
+        style: 'cancel',
+      },
+      {
+        text: t('logout'),
+        style: 'destructive',
+        onPress: () => {
+          logoutUser();
+          router.replace(signInRoute);
+        },
+      },
+    ]);
+  }, [router, t]);
+
+  useFocusEffect(
+    useCallback(() => {
+      const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+        confirmLogout();
+        return true;
+      });
+
+      return () => subscription.remove();
+    }, [confirmLogout])
+  );
+
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('beforeRemove', (event) => {
+      const actionType = event.data.action.type;
+
+      if (actionType !== 'GO_BACK' && actionType !== 'POP') {
+        return;
+      }
+
+      event.preventDefault();
+      confirmLogout();
+    });
+
+    return unsubscribe;
+  }, [confirmLogout, navigation]);
 
   const handleChangePassword = () => {
-    Alert.alert('Change Password', 'Password change flow is available from Forgot Password.');
+    router.push(changePasswordRoute);
+  };
+
+  const handleSaveName = () => {
+    const nextName = draftName.trim();
+
+    if (!nextName) {
+      return;
+    }
+
+    updateCurrentUserName(nextName);
+    setSavedName(nextName);
+    setIsEditingName(false);
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        <View style={styles.profileSection}>
+    <SafeAreaView style={[styles.container, darkMode && styles.containerDark]} edges={['top', 'left', 'right']}>
+      <ScrollView contentContainerStyle={[styles.scrollContent, darkMode && styles.scrollContentDark]} showsVerticalScrollIndicator={false}>
+        <View style={[styles.profileSection, darkMode && styles.profileSectionDark]}>
           <View style={styles.avatarOuter}>
             <View style={styles.avatarHead} />
             <View style={styles.avatarBody} />
           </View>
 
-          <View style={styles.namePill}>
-            <Text style={styles.profileName}>{displayName}</Text>
-            <Text style={styles.profileEmail}>{displayEmail}</Text>
+          <View style={[styles.namePill, darkMode && styles.cardDark]}>
+            <Text style={[styles.profileName, darkMode && styles.textDark]}>{displayName}</Text>
+            <Text style={[styles.profileEmail, darkMode && styles.mutedTextDark]}>{displayEmail}</Text>
           </View>
         </View>
 
-        <View style={styles.settingsCard}>
-          <Text style={styles.sectionTitle}>Personal Info</Text>
+        <View style={[styles.settingsCard, darkMode && styles.cardDark]}>
+          <Text style={[styles.sectionTitle, darkMode && styles.textDark]}>{t('personalInfo')}</Text>
           <SettingRow
-            icon="moon"
-            label="Dark Mode"
-            value={personalDarkMode}
-            onValueChange={setPersonalDarkMode}
+            icon="person-outline"
+            label={t('editName')}
+            onPress={() => setIsEditingName((current) => !current)}
           />
+
+          {isEditingName && (
+            <View style={styles.editNamePanel}>
+              <Text style={[styles.inputLabel, darkMode && styles.mutedTextDark]}>{t('fullName')}</Text>
+              <TextInput
+                style={[styles.nameInput, darkMode && styles.nameInputDark]}
+                value={draftName}
+                onChangeText={setDraftName}
+                placeholder={t('fullName')}
+                placeholderTextColor={darkMode ? '#9CA3AF' : '#A0AEC0'}
+              />
+              <View style={styles.editActions}>
+                <TouchableOpacity style={styles.cancelButton} onPress={() => setIsEditingName(false)}>
+                  <Text style={styles.cancelButtonText}>{t('cancel')}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.saveNameButton} onPress={handleSaveName}>
+                  <Text style={styles.saveNameText}>{t('saveName')}</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
 
           <View style={styles.sectionGap} />
 
-          <Text style={styles.sectionTitle}>Preference</Text>
+          <Text style={[styles.sectionTitle, darkMode && styles.textDark]}>{t('preference')}</Text>
           <SettingRow
             icon="moon"
-            label="Dark Mode"
-            value={preferenceDarkMode}
-            onValueChange={setPreferenceDarkMode}
+            label={t('darkMode')}
+            value={darkMode}
+            onValueChange={setDarkMode}
           />
           <SettingRow
             icon="notifications"
-            label="Notifications"
+            label={t('notifications')}
             value={notifications}
             onValueChange={setNotifications}
           />
 
           <View style={styles.sectionGapSmall} />
 
-          <Text style={styles.sectionTitle}>Language</Text>
+          <Text style={[styles.sectionTitle, darkMode && styles.textDark]}>{t('language')}</Text>
           <View style={styles.settingRow}>
             <View style={styles.settingLabelWrap}>
               <View style={styles.rowIconWrap}>
                 <MaterialCommunityIcons name="translate" size={18} color={RED} />
               </View>
-              <Text style={styles.settingLabel}>Nepali</Text>
+              <Text style={[styles.settingLabel, darkMode && styles.textDark]}>{language === 'ne' ? t('nepali') : t('english')}</Text>
             </View>
-            <Switch
-              value={nepali}
-              onValueChange={setNepali}
-              trackColor={{ false: '#A0AEC0', true: RED }}
-              thumbColor="#FFFFFF"
-              ios_backgroundColor="#A0AEC0"
-            />
+            <View style={styles.languageToggle}>
+              <TouchableOpacity
+                style={[styles.languageOption, language === 'en' && styles.languageOptionActive]}
+                onPress={() => setLanguage('en')}>
+                <Text style={[styles.languageText, language === 'en' && styles.languageTextActive]}>{t('english')}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.languageOption, language === 'ne' && styles.languageOptionActive]}
+                onPress={() => setLanguage('ne')}>
+                <Text style={[styles.languageText, language === 'ne' && styles.languageTextActive]}>{t('nepali')}</Text>
+              </TouchableOpacity>
+            </View>
           </View>
 
           <View style={styles.sectionGapSmall} />
 
-          <Text style={styles.sectionTitle}>Security</Text>
-          <SettingRow icon="lock-closed-outline" label="Change Password" onPress={handleChangePassword} />
+          <Text style={[styles.sectionTitle, darkMode && styles.textDark]}>{t('security')}</Text>
+          <SettingRow icon="lock-closed-outline" label={t('changePassword')} onPress={handleChangePassword} />
         </View>
 
-        <TouchableOpacity style={styles.logoutButton} activeOpacity={0.85} onPress={handleLogout}>
-          <Text style={styles.logoutText}>Logout</Text>
+        <TouchableOpacity style={styles.logoutButton} activeOpacity={0.85} onPress={confirmLogout}>
+          <Text style={styles.logoutText}>{t('logout')}</Text>
         </TouchableOpacity>
 
         <View style={{ height: 96 }} />
@@ -161,12 +243,18 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     flex: 1,
   },
+  containerDark: {
+    backgroundColor: '#050505',
+  },
   scrollContent: {
     backgroundColor: '#FFFFFF',
     flexGrow: 1,
     paddingBottom: 24,
     paddingHorizontal: 28,
     paddingTop: 48,
+  },
+  scrollContentDark: {
+    backgroundColor: '#050505',
   },
   profileSection: {
     alignItems: 'center',
@@ -175,6 +263,9 @@ const styles = StyleSheet.create({
     marginTop: -48,
     paddingBottom: 72,
     paddingTop: 50,
+  },
+  profileSectionDark: {
+    backgroundColor: '#0B0B0B',
   },
   avatarOuter: {
     alignItems: 'center',
@@ -220,6 +311,12 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
   },
+  textDark: {
+    color: '#F9FAFB',
+  },
+  mutedTextDark: {
+    color: '#CBD5E1',
+  },
   profileEmail: {
     color: '#000000',
     fontSize: 11,
@@ -238,6 +335,10 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.08,
     shadowRadius: 16,
     elevation: 4,
+  },
+  cardDark: {
+    backgroundColor: '#121212',
+    borderColor: '#2A2A2A',
   },
   sectionTitle: {
     color: '#111827',
@@ -277,6 +378,85 @@ const styles = StyleSheet.create({
     flexShrink: 1,
     fontSize: 13,
     fontWeight: '500',
+  },
+  editNamePanel: {
+    marginTop: 12,
+  },
+  inputLabel: {
+    color: '#4B5563',
+    fontSize: 12,
+    fontWeight: '700',
+    marginBottom: 6,
+  },
+  nameInput: {
+    backgroundColor: '#F7FAFC',
+    borderColor: BORDER,
+    borderRadius: 8,
+    borderWidth: 1,
+    color: '#111827',
+    fontSize: 15,
+    minHeight: 46,
+    paddingHorizontal: 12,
+  },
+  nameInputDark: {
+    backgroundColor: '#050505',
+    borderColor: '#2A2A2A',
+    color: '#F9FAFB',
+  },
+  editActions: {
+    flexDirection: 'row',
+    gap: 10,
+    justifyContent: 'flex-end',
+    marginTop: 10,
+  },
+  cancelButton: {
+    alignItems: 'center',
+    borderColor: BORDER,
+    borderRadius: 8,
+    borderWidth: 1,
+    justifyContent: 'center',
+    minHeight: 40,
+    paddingHorizontal: 14,
+  },
+  cancelButtonText: {
+    color: '#4B5563',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  saveNameButton: {
+    alignItems: 'center',
+    backgroundColor: RED,
+    borderRadius: 8,
+    justifyContent: 'center',
+    minHeight: 40,
+    paddingHorizontal: 16,
+  },
+  saveNameText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  languageToggle: {
+    backgroundColor: '#F3F4F6',
+    borderRadius: 8,
+    flexDirection: 'row',
+    padding: 3,
+  },
+  languageOption: {
+    borderRadius: 7,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  languageOptionActive: {
+    backgroundColor: RED,
+  },
+  languageText: {
+    color: '#4B5563',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  languageTextActive: {
+    color: '#FFFFFF',
   },
   logoutButton: {
     alignItems: 'center',

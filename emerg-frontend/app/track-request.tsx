@@ -11,6 +11,7 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { Href, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AppBottomNav } from '@/components/app-bottom-nav';
+import { useAppPreferences } from '@/src/lib/app-preferences';
 
 const RED = '#E63946';
 const NAVY = '#1A365D';
@@ -35,13 +36,14 @@ const providerDetails = [
 
 export default function TrackRequestScreen() {
   const router = useRouter();
+  const { darkMode, t } = useAppPreferences();
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={[styles.container, darkMode && styles.containerDark]} edges={['top', 'left', 'right']}>
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <Image source={require('../assets/logo.png')} style={styles.logo} resizeMode="contain" />
-          <TouchableOpacity style={styles.callButton} activeOpacity={0.75}>
+          <TouchableOpacity style={[styles.callButton, darkMode && styles.cardDark]} activeOpacity={0.75}>
             <Ionicons name="call-outline" size={22} color={RED} />
           </TouchableOpacity>
         </View>
@@ -52,25 +54,25 @@ export default function TrackRequestScreen() {
               <MaterialCommunityIcons name="ambulance" size={38} color="#FFFFFF" />
             </View>
             <View style={styles.statusTextWrap}>
-              <Text style={styles.statusEyebrow}>Live tracking</Text>
-              <Text style={styles.statusTitle}>Provider is on the way</Text>
-              <Text style={styles.statusSubtitle}>Ambulance A-04 is heading to your shared location.</Text>
+              <Text style={styles.statusEyebrow}>{t('liveTracking')}</Text>
+              <Text style={styles.statusTitle}>{t('providerOnWay')}</Text>
+              <Text style={styles.statusSubtitle}>{t('providerSubtitle')}</Text>
             </View>
           </View>
 
           <View style={styles.etaRow}>
             <View>
               <Text style={styles.etaValue}>6 min</Text>
-              <Text style={styles.etaLabel}>Estimated arrival</Text>
+              <Text style={styles.etaLabel}>{t('estimatedArrival')}</Text>
             </View>
             <View style={styles.liveBadge}>
               <View style={styles.liveDot} />
-              <Text style={styles.liveText}>Live</Text>
+              <Text style={styles.liveText}>{t('live')}</Text>
             </View>
           </View>
         </View>
 
-        <View style={styles.mapPanel}>
+        <View style={[styles.mapPanel, darkMode && styles.cardDark]}>
           <View style={styles.mapGrid}>
             <View style={styles.routeLine} />
             <View style={[styles.mapMarker, styles.userMarker]}>
@@ -83,19 +85,19 @@ export default function TrackRequestScreen() {
             <View style={styles.routeDotTwo} />
           </View>
           <View style={styles.mapInfo}>
-            <Text style={styles.mapTitle}>Route to your location</Text>
+            <Text style={[styles.mapTitle, darkMode && styles.textDark]}>{t('routeTitle')}</Text>
             <Text style={styles.mapText}>Lakeside Road, Pokhara</Text>
           </View>
         </View>
 
         <View style={styles.providerGrid}>
           {providerDetails.map((item) => (
-            <View key={item.label} style={styles.providerCard}>
+            <View key={item.label} style={[styles.providerCard, darkMode && styles.cardDark]}>
               <View style={styles.providerIcon}>
                 <MaterialCommunityIcons name={item.icon} size={23} color={RED} />
               </View>
               <Text style={styles.providerLabel}>{item.label}</Text>
-              <Text style={styles.providerValue}>{item.value}</Text>
+              <Text style={[styles.providerValue, darkMode && styles.textDark]}>{item.value}</Text>
             </View>
           ))}
         </View>
@@ -103,11 +105,11 @@ export default function TrackRequestScreen() {
         <View style={styles.actionRow}>
           <TouchableOpacity style={styles.secondaryAction} activeOpacity={0.8}>
             <Ionicons name="call-outline" size={18} color={RED} />
-            <Text style={styles.secondaryActionText}>Call Provider</Text>
+            <Text style={styles.secondaryActionText}>{t('callProvider')}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.primaryAction} activeOpacity={0.8} onPress={() => router.replace(dashboardRoute)}>
             <Ionicons name="home-outline" size={18} color="#FFFFFF" />
-            <Text style={styles.primaryActionText}>Home</Text>
+            <Text style={styles.primaryActionText}>{t('home')}</Text>
           </TouchableOpacity>
         </View>
 
@@ -123,6 +125,9 @@ const styles = StyleSheet.create({
   container: {
     backgroundColor: '#FFFFFF',
     flex: 1,
+  },
+  containerDark: {
+    backgroundColor: '#050505',
   },
   scrollContent: {
     paddingBottom: 24,
@@ -146,6 +151,13 @@ const styles = StyleSheet.create({
     position: 'absolute',
     right: 0,
     width: 44,
+  },
+  cardDark: {
+    backgroundColor: '#121212',
+    borderColor: '#2A2A2A',
+  },
+  textDark: {
+    color: '#F9FAFB',
   },
   logo: {
     height: 50,

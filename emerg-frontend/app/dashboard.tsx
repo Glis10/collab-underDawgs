@@ -1,4 +1,6 @@
 import { AppBottomNav } from '@/components/app-bottom-nav';
+import { useAppPreferences } from '@/src/lib/app-preferences';
+import { getCurrentUser } from '@/src/lib/auth';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { Href, useRouter } from 'expo-router';
 import React from 'react';
@@ -16,11 +18,11 @@ const BORDER = '#E2E8F0';
 const SURFACE = '#F7FAFC';
 
 const emergencyActions = [
-  { label: 'Police Help', icon: 'police-badge', tone: '#E63946' },
-  { label: 'Ambulance', icon: 'ambulance', tone: '#3182CE' },
-  { label: 'Fire Rescue', icon: 'fire-truck', tone: '#DD6B20' },
+  { labelKey: 'policeHelp', icon: 'police-badge', tone: '#E63946' },
+  { labelKey: 'ambulance', icon: 'ambulance', tone: '#3182CE' },
+  { labelKey: 'fireRescue', icon: 'fire-truck', tone: '#DD6B20' },
 ] as const satisfies readonly {
-  label: string;
+  labelKey: 'policeHelp' | 'ambulance' | 'fireRescue';
   icon: keyof typeof MaterialCommunityIcons.glyphMap;
   tone: string;
 }[];
@@ -33,30 +35,30 @@ const recentRequests = [
 
 export default function DashboardScreen() {
   const router = useRouter();
+  const currentUser = getCurrentUser();
+  const { darkMode, t } = useAppPreferences();
+  const fullName = currentUser?.name?.trim();
+  const firstName = fullName?.split(/\s+/)[0] || fullName || 'User';
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={[styles.container, darkMode && styles.containerDark]} edges={['top', 'left', 'right']}>
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
-          <Image 
-            source={require('../assets/logo.png')} 
-            style={styles.logo}
-            resizeMode="contain"
-          />
-          <TouchableOpacity style={styles.profileButton} activeOpacity={0.8}>
-            <Ionicons name="person" size={20} color={NAVY} />
+          <Image source={require('../assets/logo.png')} style={styles.logo} resizeMode="contain" />
+          <TouchableOpacity style={[styles.profileButton, darkMode && styles.profileButtonDark]} activeOpacity={0.8}>
+            <Ionicons name="person" size={20} color={darkMode ? '#F9FAFB' : NAVY} />
           </TouchableOpacity>
         </View>
 
-        <View style={styles.heroPanel}>
+        <View style={[styles.heroPanel, darkMode && styles.heroPanelDark]}>
           <View style={styles.heroTopRow}>
             <View>
-              <Text style={styles.welcomeLabel}>Welcome back</Text>
-              <Text style={styles.welcomeText}>User</Text>
+              <Text style={styles.welcomeLabel}>{t('welcomeBack')}</Text>
+              <Text style={styles.welcomeText}>{firstName}</Text>
             </View>
             <View style={styles.readyBadge}>
               <View style={styles.readyDot} />
-              <Text style={styles.readyText}>Ready</Text>
+              <Text style={styles.readyText}>{t('ready')}</Text>
             </View>
           </View>
 
@@ -64,7 +66,7 @@ export default function DashboardScreen() {
             <View style={styles.infoItem}>
               <Ionicons name="location-outline" size={18} color={RED} />
               <View>
-                <Text style={styles.infoLabel}>Current area</Text>
+                <Text style={styles.infoLabel}>{t('currentArea')}</Text>
                 <Text style={styles.infoValue}>Kathmandu</Text>
               </View>
             </View>
@@ -72,17 +74,17 @@ export default function DashboardScreen() {
             <View style={styles.infoItem}>
               <Ionicons name="shield-checkmark-outline" size={18} color={GREEN} />
               <View>
-                <Text style={styles.infoLabel}>Network</Text>
-                <Text style={styles.infoValue}>Online</Text>
+                <Text style={styles.infoLabel}>{t('network')}</Text>
+                <Text style={styles.infoValue}>{t('online')}</Text>
               </View>
             </View>
           </View>
         </View>
 
-        <View style={styles.sosPanel}>
+        <View style={[styles.sosPanel, darkMode && styles.cardDark]}>
           <View style={styles.sosCopy}>
-            <Text style={styles.sosTitle}>Emergency SOS</Text>
-            <Text style={styles.sosSubtitle}>Send your live location to nearby responders.</Text>
+            <Text style={[styles.sosTitle, darkMode && styles.textDark]}>{t('emergencySos')}</Text>
+            <Text style={styles.sosSubtitle}>{t('sosSubtitle')}</Text>
           </View>
           <View style={styles.sosContainer}>
             <TouchableOpacity style={styles.sosOuterRing} activeOpacity={0.8}>
@@ -93,61 +95,59 @@ export default function DashboardScreen() {
               </View>
             </TouchableOpacity>
           </View>
-          <Text style={styles.tapText}>Tap and hold in case of emergency</Text>
+          <Text style={styles.tapText}>{t('tapHold')}</Text>
         </View>
-        
-        <View style={styles.utilityRow}>
-          <TouchableOpacity style={styles.utilityButton} activeOpacity={0.8}>
-            <Ionicons name="refresh-circle-outline" size={18} color={NAVY} />
-            <Text style={styles.utilityText}>Emergency Drill</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.utilityButton} activeOpacity={0.8} onPress={() => router.replace(trackRequestRoute)}>
-            <Ionicons name="navigate-circle-outline" size={18} color={NAVY} />
-            <Text style={styles.utilityText}>Track Active</Text>
-          </TouchableOpacity>
 
+        <View style={styles.utilityRow}>
+          <TouchableOpacity style={[styles.utilityButton, darkMode && styles.cardDark]} activeOpacity={0.8}>
+            <Ionicons name="refresh-circle-outline" size={18} color={darkMode ? '#F9FAFB' : NAVY} />
+            <Text style={[styles.utilityText, darkMode && styles.textDark]}>{t('emergencyDrill')}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.utilityButton, darkMode && styles.cardDark]} activeOpacity={0.8} onPress={() => router.replace(trackRequestRoute)}>
+            <Ionicons name="navigate-circle-outline" size={18} color={darkMode ? '#F9FAFB' : NAVY} />
+            <Text style={[styles.utilityText, darkMode && styles.textDark]}>{t('trackActive')}</Text>
+          </TouchableOpacity>
         </View>
 
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Quick Help</Text>
-          <Text style={styles.sectionHint}>Choose service</Text>
+          <Text style={[styles.sectionTitle, darkMode && styles.textDark]}>{t('quickHelp')}</Text>
+          <Text style={styles.sectionHint}>{t('chooseService')}</Text>
         </View>
         <View style={styles.gridContainer}>
           {emergencyActions.map((action) => (
-            <TouchableOpacity key={action.label} style={styles.gridItem} activeOpacity={0.82}>
+            <TouchableOpacity key={action.labelKey} style={[styles.gridItem, darkMode && styles.cardDark]} activeOpacity={0.82}>
               <View style={[styles.gridIcon, { backgroundColor: `${action.tone}14` }]}>
                 <MaterialCommunityIcons name={action.icon} size={31} color={action.tone} />
               </View>
-              <Text style={styles.gridItemText}>{action.label}</Text>
+              <Text style={[styles.gridItemText, darkMode && styles.textDark]}>{t(action.labelKey)}</Text>
             </TouchableOpacity>
           ))}
-          <TouchableOpacity style={styles.gridItem} onPress={() => router.replace(trackRequestRoute)}>
+          <TouchableOpacity style={[styles.gridItem, darkMode && styles.cardDark]} onPress={() => router.replace(trackRequestRoute)}>
             <View style={styles.gridIcon}>
               <Ionicons name="navigate" size={31} color={RED} />
             </View>
-
-            <Text style={styles.gridItemText}>Track Request</Text>
+            <Text style={[styles.gridItemText, darkMode && styles.textDark]}>{t('trackRequest')}</Text>
           </TouchableOpacity>
         </View>
 
         <View style={styles.historySection}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Recent Requests</Text>
-            <Text style={styles.sectionHint}>Last activity</Text>
+            <Text style={[styles.sectionTitle, darkMode && styles.textDark]}>{t('recentRequests')}</Text>
+            <Text style={styles.sectionHint}>{t('lastActivity')}</Text>
           </View>
 
           {recentRequests.map((request) => (
-            <View key={`${request.title}-${request.date}`} style={styles.historyCard}>
-              <View style={styles.historyIcon}>
-                <MaterialCommunityIcons name="file-document-outline" size={20} color={NAVY} />
+            <View key={`${request.title}-${request.date}`} style={[styles.historyCard, darkMode && styles.cardDark]}>
+              <View style={[styles.historyIcon, darkMode && styles.historyIconDark]}>
+                <MaterialCommunityIcons name="file-document-outline" size={20} color={darkMode ? '#F9FAFB' : NAVY} />
               </View>
               <View style={styles.historyCardLeft}>
-                <Text style={styles.historyCardTitle}>{request.title}</Text>
+                <Text style={[styles.historyCardTitle, darkMode && styles.textDark]}>{request.title}</Text>
                 <Text style={styles.historyCardDate}>{request.date}</Text>
                 <Text style={styles.historyCardLocation}>{request.location}</Text>
               </View>
               <View style={[styles.badge, { backgroundColor: request.color }]}>
-                <Text style={styles.badgeText}>{request.status}</Text>
+                <Text style={styles.badgeText}>{request.status === 'Pending' ? t('pending') : t('completed')}</Text>
               </View>
             </View>
           ))}
@@ -165,6 +165,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: SURFACE,
+  },
+  containerDark: {
+    backgroundColor: '#050505',
   },
   scrollContent: {
     paddingHorizontal: 20,
@@ -191,11 +194,20 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     width: 42,
   },
+  profileButtonDark: {
+    backgroundColor: '#121212',
+    borderColor: '#2A2A2A',
+  },
   heroPanel: {
     backgroundColor: NAVY,
     borderRadius: 8,
     marginBottom: 16,
     padding: 16,
+  },
+  heroPanelDark: {
+    backgroundColor: '#0B0B0B',
+    borderColor: '#2A2A2A',
+    borderWidth: 1,
   },
   heroTopRow: {
     alignItems: 'flex-start',
@@ -317,11 +329,6 @@ const styles = StyleSheet.create({
     backgroundColor: RED,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: RED,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
-    elevation: 8,
   },
   tapText: {
     textAlign: 'center',
@@ -383,11 +390,6 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     borderWidth: 1,
     borderColor: BORDER,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
   },
   gridIcon: {
     alignItems: 'center',
@@ -416,6 +418,13 @@ const styles = StyleSheet.create({
     padding: 12,
     marginBottom: 10,
   },
+  cardDark: {
+    backgroundColor: '#121212',
+    borderColor: '#2A2A2A',
+  },
+  textDark: {
+    color: '#F9FAFB',
+  },
   historyIcon: {
     alignItems: 'center',
     backgroundColor: SURFACE,
@@ -424,6 +433,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginRight: 11,
     width: 42,
+  },
+  historyIconDark: {
+    backgroundColor: '#050505',
   },
   historyCardLeft: {
     flex: 1,
@@ -455,5 +467,4 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
-
 });

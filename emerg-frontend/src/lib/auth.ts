@@ -198,6 +198,17 @@ export function getCurrentUser() {
   return currentUser;
 }
 
+export function updateCurrentUserName(name: string) {
+  if (!currentUser) {
+    return;
+  }
+
+  currentUser = {
+    ...currentUser,
+    name,
+  };
+}
+
 export function logoutUser() {
   authToken = null;
   currentUser = null;

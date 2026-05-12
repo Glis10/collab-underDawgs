@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Href, useRouter } from 'expo-router';
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useAppPreferences } from '@/src/lib/app-preferences';
 
 const RED = '#E63946';
 
@@ -31,6 +32,7 @@ type AppBottomNavProps = {
 
 export function AppBottomNav({ activeTab }: AppBottomNavProps) {
   const router = useRouter();
+  const { darkMode, t } = useAppPreferences();
 
   const handlePress = (tab: AppTab) => {
     const route = routes[tab];
@@ -43,15 +45,16 @@ export function AppBottomNav({ activeTab }: AppBottomNavProps) {
   };
 
   return (
-    <View style={styles.bottomTabBar}>
+    <View style={[styles.bottomTabBar, darkMode && styles.bottomTabBarDark]}>
       {tabs.map((tab) => {
         const isActive = tab.key === activeTab;
+        const labelKey = tab.key.charAt(0).toLowerCase() + tab.key.slice(1) as 'home' | 'contacts' | 'track' | 'settings';
 
         return (
           <TouchableOpacity key={tab.key} style={styles.tabItem} activeOpacity={0.8} onPress={() => handlePress(tab.key)}>
             <View style={isActive ? styles.activeTabBg : styles.inactiveTabBg}>
               <Ionicons name={tab.icon} size={24} color={isActive ? RED : '#FFFFFF'} />
-              <Text style={[styles.tabText, isActive && styles.activeTabText]}>{tab.label}</Text>
+              <Text style={[styles.tabText, isActive && styles.activeTabText]}>{t(labelKey)}</Text>
             </View>
           </TouchableOpacity>
         );
@@ -75,6 +78,9 @@ const styles = StyleSheet.create({
     paddingTop: 10,
     position: 'absolute',
     right: 0,
+  },
+  bottomTabBarDark: {
+    backgroundColor: '#101010',
   },
   tabItem: {
     alignItems: 'center',
