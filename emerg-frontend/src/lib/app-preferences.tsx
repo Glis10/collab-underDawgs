@@ -22,6 +22,7 @@ type TranslationKey =
   | 'policeHelp'
   | 'ambulance'
   | 'fireRescue'
+  | 'rescueTeam'
   | 'trackRequest'
   | 'recentRequests'
   | 'lastActivity'
@@ -90,6 +91,7 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     policeHelp: 'Police Help',
     ambulance: 'Ambulance',
     fireRescue: 'Fire Rescue',
+    rescueTeam: 'Rescue Team',
     trackRequest: 'Track Request',
     recentRequests: 'Recent Requests',
     lastActivity: 'Last activity',
@@ -157,6 +159,7 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     policeHelp: 'प्रहरी सहयोग',
     ambulance: 'एम्बुलेन्स',
     fireRescue: 'दमकल उद्धार',
+    rescueTeam: 'उद्धार टोली',
     trackRequest: 'अनुरोध ट्र्याक',
     recentRequests: 'हालका अनुरोध',
     lastActivity: 'अन्तिम गतिविधि',
