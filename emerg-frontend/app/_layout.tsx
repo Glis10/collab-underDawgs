@@ -1,5 +1,6 @@
 import { Stack } from 'expo-router';
 import { AppPreferencesProvider } from '@/src/lib/app-preferences';
+import { ExitConfirmation } from '@/components/exit-confirmation';
 
 const stackScreenOptions = {
   headerShown: false,
@@ -9,6 +10,7 @@ const stackScreenOptions = {
 export default function RootLayout() {
   return (
     <AppPreferencesProvider>
+      <ExitConfirmation />
       <Stack screenOptions={stackScreenOptions}>
         <Stack.Screen name="index" />
         <Stack.Screen name="UserSignIn" />
@@ -18,6 +20,7 @@ export default function RootLayout() {
         <Stack.Screen name="OtpVerification" />
         <Stack.Screen name="ResetPassword" />
         <Stack.Screen name="dashboard" />
+        <Stack.Screen name="service-request" />
         <Stack.Screen name="track-request" />
         <Stack.Screen name="contacts" />
         <Stack.Screen name="settings" />
