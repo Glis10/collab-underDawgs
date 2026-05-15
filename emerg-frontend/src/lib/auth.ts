@@ -83,6 +83,7 @@ export type EmergencyLocation = {
 
 export type EmergencyRequest = {
   id: string;
+  emergencyRequestId?: string;
   userId: string;
   serviceType?: ServiceType;
   emergencyType?: ServiceType;
@@ -96,6 +97,7 @@ export type EmergencyRequest = {
   location?: EmergencyLocation;
   emergencyLocation?: EmergencyLocation;
   currentLocation?: EmergencyLocation;
+  locationName?: string;
   createdAt?: string;
   updatedAt?: string;
 };
@@ -106,6 +108,7 @@ export type AdminEmergencyRequest = {
   emergencyType?: 'medical' | 'police' | 'fire';
   serviceType?: ServiceType;
   coordinates?: EmergencyLocation;
+  locationName?: string;
   timestamp?: string;
   description?: string;
   requestStatus: string;
@@ -115,6 +118,7 @@ export type AdminEmergencyRequest = {
     name: string;
     phoneNumber?: string;
     email?: string;
+    primaryAddress?: string;
     currentLocation?: EmergencyLocation | null;
   } | null;
   responderDetails?: {
@@ -328,6 +332,17 @@ export async function getEmergencyRequests(): Promise<EmergencyRequest[]> {
 
   return apiRequest<EmergencyRequest[]>('/v1/emergency-request/recent', {
     method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+}
+
+export async function cancelEmergencyRequest(id: string): Promise<EmergencyRequest> {
+  const token = requireAuthToken('Please sign in again before cancelling emergency requests.');
+
+  return apiRequest<EmergencyRequest>(`/v1/emergency-request/${id}/cancel`, {
+    method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,
     },

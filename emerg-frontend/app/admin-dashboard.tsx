@@ -5,6 +5,7 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  Modal,
   ScrollView,
   StyleSheet,
   Switch,
@@ -91,6 +92,7 @@ type DashboardEmergencyRequest = {
   type: string;
   requester: string;
   location: string;
+  description: string;
   time: string;
   status: RequestStatus;
   icon: keyof typeof MaterialCommunityIcons.glyphMap;
@@ -298,7 +300,8 @@ function toDashboardRequest(request: AdminEmergencyRequest): DashboardEmergencyR
     id: request.id,
     type: service.type,
     requester: request.requester?.name || `User ${request.userId.slice(0, 8)}`,
-    location: formatLocation(request.coordinates || request.requester?.currentLocation),
+    location: request.locationName || request.requester?.primaryAddress || formatLocation(request.coordinates || request.requester?.currentLocation),
+    description: request.description || 'No message provided.',
     time: formatRequestTime(request.tracking?.requestedAt || request.timestamp),
     status: mapRequestStatus(request.requestStatus),
     icon: service.icon,
@@ -315,6 +318,7 @@ export default function AdminDashboardScreen() {
   const [requests, setRequests] = useState<DashboardEmergencyRequest[]>([]);
   const [responderStatus, setResponderStatus] = useState<ResponderStatus>('available');
   const [isLoadingRequests, setIsLoadingRequests] = useState(false);
+  const [selectedRequest, setSelectedRequest] = useState<DashboardEmergencyRequest | null>(null);
   const [notifications, setNotifications] = useState(true);
   const [isEditingName, setIsEditingName] = useState(false);
   const [savedName, setSavedName] = useState(currentUser?.name || 'Admin');
@@ -415,6 +419,7 @@ export default function AdminDashboardScreen() {
       await approveAdminEmergencyRequest(id);
       await loadAdminRequests();
       setResponderStatus('busy');
+      setSelectedRequest(null);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to accept this request.';
       Alert.alert('Accept failed', message);
@@ -425,6 +430,7 @@ export default function AdminDashboardScreen() {
     try {
       await rejectAdminEmergencyRequest(id);
       await loadAdminRequests();
+      setSelectedRequest(null);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to decline this request.';
       Alert.alert('Decline failed', message);
@@ -483,6 +489,12 @@ export default function AdminDashboardScreen() {
           <Ionicons name="location-outline" size={14} color={MUTED} />
           <Text style={styles.locationText}>{request.location}</Text>
         </View>
+        <Text style={[styles.requestMessagePreview, darkMode && styles.mutedTextDark]} numberOfLines={2}>
+          {request.description}
+        </Text>
+        <TouchableOpacity style={styles.detailsButton} activeOpacity={0.8} onPress={() => setSelectedRequest(request)}>
+          <Text style={styles.detailsButtonText}>View full details</Text>
+        </TouchableOpacity>
 
         {request.status === 'assigned' ? (
           <View style={styles.requestActions}>
@@ -505,6 +517,46 @@ export default function AdminDashboardScreen() {
         )}
       </View>
     </View>
+  );
+
+  const renderRequestDetailsModal = () => (
+    <Modal visible={Boolean(selectedRequest)} transparent animationType="slide" onRequestClose={() => setSelectedRequest(null)}>
+      <View style={styles.modalOverlay}>
+        <View style={[styles.detailsModal, darkMode && styles.cardDark]}>
+          <View style={styles.detailsHeader}>
+            <Text style={[styles.detailsTitle, darkMode && styles.textDark]}>{selectedRequest?.type}</Text>
+            <TouchableOpacity style={styles.closeButton} onPress={() => setSelectedRequest(null)}>
+              <Ionicons name="close" size={22} color={darkMode ? '#FFFFFF' : NAVY} />
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView showsVerticalScrollIndicator={false}>
+            <Text style={styles.detailsLabel}>{tr('requester')}</Text>
+            <Text style={[styles.detailsValue, darkMode && styles.textDark]}>{selectedRequest?.requester}</Text>
+
+            <Text style={styles.detailsLabel}>Location</Text>
+            <Text style={[styles.detailsValue, darkMode && styles.textDark]}>{selectedRequest?.location}</Text>
+
+            <Text style={styles.detailsLabel}>Requested at</Text>
+            <Text style={[styles.detailsValue, darkMode && styles.textDark]}>{selectedRequest?.time}</Text>
+
+            <Text style={styles.detailsLabel}>Problem message</Text>
+            <Text style={[styles.detailsMessage, darkMode && styles.textDark]}>{selectedRequest?.description}</Text>
+          </ScrollView>
+
+          {selectedRequest && selectedRequest.status !== 'completed' && (
+            <View style={styles.detailsActions}>
+              <TouchableOpacity style={styles.acceptButton} activeOpacity={0.8} onPress={() => handleAcceptRequest(selectedRequest.id)}>
+                <Text style={styles.actionButtonText}>{tr('accept')}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.busyButton} activeOpacity={0.8} onPress={() => handleDeclineRequest(selectedRequest.id)}>
+                <Text style={styles.busyButtonText}>{tr('decline')}</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+      </View>
+    </Modal>
   );
 
   const renderHeader = () => (
@@ -790,6 +842,7 @@ export default function AdminDashboardScreen() {
           );
         })}
       </View>
+      {renderRequestDetailsModal()}
     </SafeAreaView>
   );
 }
@@ -1035,6 +1088,23 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginLeft: 4,
   },
+  requestMessagePreview: {
+    color: MUTED,
+    fontSize: 13,
+    fontWeight: '600',
+    lineHeight: 18,
+    marginTop: 8,
+  },
+  detailsButton: {
+    alignSelf: 'flex-start',
+    marginTop: 8,
+    paddingVertical: 4,
+  },
+  detailsButtonText: {
+    color: RED,
+    fontSize: 13,
+    fontWeight: '900',
+  },
   requestActions: {
     alignItems: 'center',
     flexDirection: 'row',
@@ -1098,6 +1168,65 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 12,
     fontWeight: '900',
+  },
+  modalOverlay: {
+    backgroundColor: 'rgba(0,0,0,0.42)',
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  detailsModal: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 18,
+    borderTopRightRadius: 18,
+    maxHeight: '82%',
+    padding: 20,
+  },
+  detailsHeader: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 18,
+  },
+  detailsTitle: {
+    color: NAVY,
+    flex: 1,
+    fontSize: 22,
+    fontWeight: '900',
+  },
+  closeButton: {
+    alignItems: 'center',
+    borderColor: BORDER,
+    borderRadius: 8,
+    borderWidth: 1,
+    height: 38,
+    justifyContent: 'center',
+    width: 38,
+  },
+  detailsLabel: {
+    color: RED,
+    fontSize: 12,
+    fontWeight: '900',
+    marginTop: 12,
+    textTransform: 'uppercase',
+  },
+  detailsValue: {
+    color: NAVY,
+    fontSize: 16,
+    fontWeight: '800',
+    lineHeight: 22,
+    marginTop: 5,
+  },
+  detailsMessage: {
+    color: '#111827',
+    fontSize: 15,
+    fontWeight: '600',
+    lineHeight: 22,
+    marginTop: 8,
+  },
+  detailsActions: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 18,
   },
   emptyText: {
     color: MUTED,
