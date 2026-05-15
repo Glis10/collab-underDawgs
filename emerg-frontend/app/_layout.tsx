@@ -22,6 +22,7 @@ export default function RootLayout() {
         <Stack.Screen name="contacts" />
         <Stack.Screen name="settings" />
         <Stack.Screen name="change-password" />
+        <Stack.Screen name="admin-change-password" />
         <Stack.Screen name="admin-dashboard" />
         <Stack.Screen name="Terms" />
         <Stack.Screen name="(tabs)" />
