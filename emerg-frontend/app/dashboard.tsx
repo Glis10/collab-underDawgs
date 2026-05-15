@@ -1,9 +1,9 @@
-import { AppBottomNav } from '@/components/app-bottom-nav';
 import { ContactsContent } from '@/app/contacts';
 import { SettingsContent } from '@/app/settings';
 import { TrackRequestContent } from '@/app/track-request';
+import { AppBottomNav } from '@/components/app-bottom-nav';
 import { useAppPreferences } from '@/src/lib/app-preferences';
-import { createEmergencyRequest, EmergencyRequest, getCurrentUser, getEmergencyRequests } from '@/src/lib/auth';
+import { cancelEmergencyRequest, createEmergencyRequest, EmergencyRequest, getCurrentUser, getEmergencyRequests } from '@/src/lib/auth';
 import { getCurrentEmergencyLocation } from '@/src/lib/location';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { Href, useRouter } from 'expo-router';
@@ -106,6 +106,31 @@ export default function DashboardScreen() {
     Alert.alert('Emergency Drill', 'Practice mode is ready. Hold the SOS button for 3 seconds when this is a real emergency.');
   };
 
+  const canCancelRequest = (request: EmergencyRequest) => {
+    const status = getRequestStatus(request);
+
+    return status === 'pending' || status === 'approved' || status === 'assigned' || status === 'in_progress';
+  };
+
+  const confirmCancelRequest = (request: EmergencyRequest) => {
+    Alert.alert('Cancel request?', 'This will remove the request from the active admin queue.', [
+      { text: 'Keep request', style: 'cancel' },
+      {
+        text: 'Cancel request',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await cancelEmergencyRequest(request.emergencyRequestId || request.id);
+            await loadRequestHistory();
+          } catch (error) {
+            const message = error instanceof Error ? error.message : 'Unable to cancel this request.';
+            Alert.alert('Cancel failed', message);
+          }
+        },
+      },
+    ]);
+  };
+
   const getRequestTitle = (request: EmergencyRequest) => {
     const serviceType = request.serviceType || request.emergencyType;
 
@@ -131,7 +156,7 @@ export default function DashboardScreen() {
       return GREEN;
     }
 
-    if (status === 'rejected') {
+    if (status === 'rejected' || status === 'cancelled') {
       return RED;
     }
 
@@ -154,7 +179,15 @@ export default function DashboardScreen() {
   };
 
   const formatRequestLocation = (request: EmergencyRequest) => {
+    if (request.locationName) {
+      return request.locationName;
+    }
+
     const location = request.location || request.emergencyLocation || request.currentLocation;
+
+    if (currentUser?.primaryAddress) {
+      return currentUser.primaryAddress;
+    }
 
     if (!location?.latitude || !location.longitude) {
       return 'Location unavailable';
@@ -293,6 +326,11 @@ export default function DashboardScreen() {
               <View style={[styles.badge, { backgroundColor: getStatusColor(status) }]}>
                 <Text style={styles.badgeText}>{status.replace(/_/g, ' ')}</Text>
               </View>
+              {canCancelRequest(request) && (
+                <TouchableOpacity style={styles.cancelRequestButton} activeOpacity={0.8} onPress={() => confirmCancelRequest(request)}>
+                  <Text style={styles.cancelRequestText}>Cancel</Text>
+                </TouchableOpacity>
+              )}
             </View>
               );
             })
@@ -399,4 +437,6 @@ const styles = StyleSheet.create({
   historyCardLocation: { fontSize: 13, color: MUTED, fontWeight: '700' },
   badge: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
   badgeText: { color: '#FFFFFF', fontSize: 12, fontWeight: '600' },
+  cancelRequestButton: { alignItems: 'center', borderColor: RED, borderRadius: 8, borderWidth: 1, height: 34, justifyContent: 'center', marginLeft: 8, paddingHorizontal: 10 },
+  cancelRequestText: { color: RED, fontSize: 12, fontWeight: '900' },
 });
