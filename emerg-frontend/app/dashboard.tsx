@@ -3,11 +3,11 @@ import { ContactsContent } from '@/app/contacts';
 import { SettingsContent } from '@/app/settings';
 import { TrackRequestContent } from '@/app/track-request';
 import { useAppPreferences } from '@/src/lib/app-preferences';
-import { createEmergencyRequest, getCurrentUser } from '@/src/lib/auth';
+import { createEmergencyRequest, EmergencyRequest, getCurrentUser, getEmergencyRequests } from '@/src/lib/auth';
 import { getCurrentEmergencyLocation } from '@/src/lib/location';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { Href, useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -33,20 +33,31 @@ const emergencyActions = [
   serviceType: 'ambulance' | 'police' | 'rescue_team' | 'fire_truck';
 }[];
 
-const recentRequests = [
-  { title: 'Ambulance', date: 'April 1, 2025 9:41 PM', location: 'Lakeside Road', status: 'Pending', color: YELLOW },
-  { title: 'Police Help', date: 'March 24, 2025 4:18 PM', location: 'New Road', status: 'Completed', color: GREEN },
-  { title: 'Fire Rescue', date: 'March 10, 2025 11:05 AM', location: 'Mahendrapul', status: 'Completed', color: GREEN },
-] as const;
-
 export default function DashboardScreen() {
   const router = useRouter();
   const currentUser = getCurrentUser();
   const { darkMode, t } = useAppPreferences();
   const [activeTab, setActiveTab] = useState<UserTab>('Home');
   const [isSendingSos, setIsSendingSos] = useState(false);
+  const [requestHistory, setRequestHistory] = useState<EmergencyRequest[]>([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(true);
   const fullName = currentUser?.name?.trim();
   const firstName = fullName?.split(/\s+/)[0] || fullName || 'User';
+
+  const loadRequestHistory = useCallback(async () => {
+    try {
+      const requests = await getEmergencyRequests();
+      setRequestHistory(requests);
+    } catch {
+      setRequestHistory([]);
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadRequestHistory();
+  }, [loadRequestHistory]);
 
   const openService = (action: (typeof emergencyActions)[number]) => {
     const serviceLabel = encodeURIComponent(t(action.labelKey));
@@ -68,6 +79,7 @@ export default function DashboardScreen() {
           })
         )
       );
+      await loadRequestHistory();
 
       Alert.alert('SOS sent', 'Your location has been shared with all emergency services.', [
         { text: 'Track request', onPress: () => setActiveTab('Track') },
@@ -93,6 +105,67 @@ export default function DashboardScreen() {
 
   const handleEmergencyDrill = () => {
     Alert.alert('Emergency Drill', 'Practice mode is ready. Hold the SOS button for 3 seconds when this is a real emergency.');
+  };
+
+  const getRequestTitle = (request: EmergencyRequest) => {
+    const serviceType = request.serviceType || request.emergencyType;
+
+    if (serviceType === 'police') {
+      return t('policeHelp');
+    }
+
+    if (serviceType === 'ambulance') {
+      return t('ambulance');
+    }
+
+    if (serviceType === 'fire_truck') {
+      return t('fireRescue');
+    }
+
+    if (serviceType === 'rescue_team') {
+      return t('rescueTeam');
+    }
+
+    return 'Emergency request';
+  };
+
+  const getRequestStatus = (request: EmergencyRequest) => request.requestStatus || request.status || 'pending';
+
+  const getStatusColor = (status: string) => {
+    if (status === 'completed') {
+      return GREEN;
+    }
+
+    if (status === 'rejected') {
+      return RED;
+    }
+
+    if (status === 'assigned' || status === 'in_progress' || status === 'approved') {
+      return '#3182CE';
+    }
+
+    return YELLOW;
+  };
+
+  const formatRequestDate = (value?: string) => {
+    if (!value) {
+      return 'Just now';
+    }
+
+    return new Intl.DateTimeFormat(undefined, {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+    }).format(new Date(value));
+  };
+
+  const formatRequestLocation = (request: EmergencyRequest) => {
+    const location = request.location || request.emergencyLocation || request.currentLocation;
+
+    if (!location?.latitude || !location.longitude) {
+      return 'Location unavailable';
+    }
+
+    return `${location.latitude}, ${location.longitude}`;
   };
 
   const renderHome = () => (
@@ -204,21 +277,41 @@ export default function DashboardScreen() {
             <Text style={styles.sectionHint}>{t('lastActivity')}</Text>
           </View>
 
-          {recentRequests.map((request) => (
-            <View key={`${request.title}-${request.date}`} style={[styles.historyCard, darkMode && styles.cardDark]}>
+          {isLoadingHistory ? (
+            <View style={[styles.historyCard, darkMode && styles.cardDark]}>
+              <ActivityIndicator color={RED} />
+            </View>
+          ) : requestHistory.length > 0 ? (
+            requestHistory.map((request) => {
+              const status = getRequestStatus(request);
+
+              return (
+            <View key={request.id} style={[styles.historyCard, darkMode && styles.cardDark]}>
               <View style={[styles.historyIcon, darkMode && styles.historyIconDark]}>
                 <MaterialCommunityIcons name="file-document-outline" size={20} color={darkMode ? '#F9FAFB' : NAVY} />
               </View>
               <View style={styles.historyCardLeft}>
-                <Text style={[styles.historyCardTitle, darkMode && styles.textDark]}>{request.title}</Text>
-                <Text style={styles.historyCardDate}>{request.date}</Text>
-                <Text style={styles.historyCardLocation}>{request.location}</Text>
+                <Text style={[styles.historyCardTitle, darkMode && styles.textDark]}>{getRequestTitle(request)}</Text>
+                <Text style={styles.historyCardDate}>{formatRequestDate(request.requestTime || request.createdAt)}</Text>
+                <Text style={styles.historyCardLocation}>{formatRequestLocation(request)}</Text>
               </View>
-              <View style={[styles.badge, { backgroundColor: request.color }]}>
-                <Text style={styles.badgeText}>{request.status === 'Pending' ? t('pending') : t('completed')}</Text>
+              <View style={[styles.badge, { backgroundColor: getStatusColor(status) }]}>
+                <Text style={styles.badgeText}>{status.replace(/_/g, ' ')}</Text>
               </View>
             </View>
-          ))}
+              );
+            })
+          ) : (
+            <View style={[styles.historyCard, darkMode && styles.cardDark]}>
+              <View style={[styles.historyIcon, darkMode && styles.historyIconDark]}>
+                <MaterialCommunityIcons name="history" size={20} color={darkMode ? '#F9FAFB' : NAVY} />
+              </View>
+              <View style={styles.historyCardLeft}>
+                <Text style={[styles.historyCardTitle, darkMode && styles.textDark]}>No requests yet</Text>
+                <Text style={styles.historyCardDate}>Your real request history will appear here.</Text>
+              </View>
+            </View>
+          )}
         </View>
 
         <View style={{ height: 96 }} />
