@@ -25,12 +25,11 @@ const emergencyActions = [
   { labelKey: 'policeHelp', icon: 'police-badge', tone: '#E63946', serviceType: 'police' },
   { labelKey: 'ambulance', icon: 'ambulance', tone: '#3182CE', serviceType: 'ambulance' },
   { labelKey: 'fireRescue', icon: 'fire-truck', tone: '#DD6B20', serviceType: 'fire_truck' },
-  { labelKey: 'rescueTeam', icon: 'account-hard-hat', tone: '#00A86B', serviceType: 'rescue_team' },
 ] as const satisfies readonly {
-  labelKey: 'policeHelp' | 'ambulance' | 'fireRescue' | 'rescueTeam';
+  labelKey: 'policeHelp' | 'ambulance' | 'fireRescue';
   icon: keyof typeof MaterialCommunityIcons.glyphMap;
   tone: string;
-  serviceType: 'ambulance' | 'police' | 'rescue_team' | 'fire_truck';
+  serviceType: 'ambulance' | 'police' | 'fire_truck';
 }[];
 
 export default function DashboardScreen() {
@@ -95,7 +94,7 @@ export default function DashboardScreen() {
   const confirmSos = () => {
     Alert.alert(
       'Send SOS?',
-      'Your live location will be shared with ambulance, police, fire rescue, and rescue team services.',
+      'Your live location will be shared with ambulance, police, and fire rescue services.',
       [
         { text: 'Cancel', style: 'cancel' },
         { text: 'Send help', style: 'destructive', onPress: sendSosRequests },
@@ -120,10 +119,6 @@ export default function DashboardScreen() {
 
     if (serviceType === 'fire_truck') {
       return t('fireRescue');
-    }
-
-    if (serviceType === 'rescue_team') {
-      return t('rescueTeam');
     }
 
     return 'Emergency request';
