@@ -13,6 +13,9 @@ export type AuthUser = {
   phoneNumber: string;
   primaryAddress: string;
   role: 'user' | 'admin';
+  currentLocation?: EmergencyLocation | null;
+  serviceStatus?: string;
+  serviceType?: ServiceType;
 };
 
 type AuthPayload = {
@@ -137,6 +140,8 @@ export type AdminEmergencyRequest = {
     lastUpdatedAt?: string;
   };
 };
+
+export type EmergencyTrackingDetails = AdminEmergencyRequest;
 
 type AdminEmergencyListPayload = {
   emergencies: AdminEmergencyRequest[];
@@ -336,6 +341,38 @@ export async function getEmergencyRequests(): Promise<EmergencyRequest[]> {
       Authorization: `Bearer ${token}`,
     },
   });
+}
+
+export async function getEmergencyRequestDetails(id: string): Promise<EmergencyTrackingDetails> {
+  const token = requireAuthToken('Please sign in again before tracking this request.');
+
+  return apiRequest<EmergencyTrackingDetails>(`/emergency/${id}`, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+}
+
+export async function updateMyLocation(location: EmergencyLocation): Promise<AuthUser> {
+  const token = requireAuthToken('Please sign in again before sharing your location.');
+
+  const user = await apiRequest<AuthUser>('/auth/me/location', {
+    method: 'PATCH',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(location),
+  });
+
+  if (currentUser) {
+    currentUser = {
+      ...currentUser,
+      ...user,
+    };
+  }
+
+  return user;
 }
 
 export async function cancelEmergencyRequest(id: string): Promise<EmergencyRequest> {

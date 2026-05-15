@@ -5,6 +5,7 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  Linking,
   Modal,
   ScrollView,
   StyleSheet,
@@ -15,6 +16,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { LeafletMap } from '@/src/components/leaflet-map';
 import { useAppPreferences } from '@/src/lib/app-preferences';
 import {
   AdminEmergencyRequest,
@@ -25,7 +27,9 @@ import {
   rejectAdminEmergencyRequest,
   resolveAdminEmergencyRequest,
   updateCurrentUserName,
+  updateMyLocation,
 } from '@/src/lib/auth';
+import { getOptionalCurrentEmergencyLocation } from '@/src/lib/location';
 
 const RED = '#E63946';
 const NAVY = '#1A365D';
@@ -36,6 +40,7 @@ const FAINT = '#A0AEC0';
 const BORDER = '#E2E8F0';
 const SURFACE = '#F7FAFC';
 const LIGHT_RED = '#FFF1F2';
+const fallbackAdminLocation = { latitude: '27.7112', longitude: '85.3388' };
 const adminSignInRoute = '/AdminSignIn' as Href;
 const adminChangePasswordRoute = '/admin-change-password' as Href;
 
@@ -92,6 +97,10 @@ type DashboardEmergencyRequest = {
   type: string;
   requester: string;
   location: string;
+  coordinates?: { latitude: string; longitude: string } | null;
+  requesterLocation?: { latitude: string; longitude: string } | null;
+  responderLocation?: { latitude: string; longitude: string } | null;
+  responderName?: string;
   description: string;
   time: string;
   status: RequestStatus;
@@ -301,6 +310,10 @@ function toDashboardRequest(request: AdminEmergencyRequest): DashboardEmergencyR
     type: service.type,
     requester: request.requester?.name || `User ${request.userId.slice(0, 8)}`,
     location: request.locationName || request.requester?.primaryAddress || formatLocation(request.coordinates || request.requester?.currentLocation),
+    coordinates: request.coordinates || null,
+    requesterLocation: request.requester?.currentLocation || request.coordinates || null,
+    responderLocation: request.responderDetails?.currentLocation || null,
+    responderName: request.responderDetails?.name,
     description: request.description || 'No message provided.',
     time: formatRequestTime(request.tracking?.requestedAt || request.timestamp),
     status: mapRequestStatus(request.requestStatus),
@@ -323,6 +336,7 @@ export default function AdminDashboardScreen() {
   const [isEditingName, setIsEditingName] = useState(false);
   const [savedName, setSavedName] = useState(currentUser?.name || 'Admin');
   const [draftName, setDraftName] = useState(currentUser?.name || 'Admin');
+  const [adminLocation, setAdminLocation] = useState(currentUser?.currentLocation || fallbackAdminLocation);
   const displayEmail = currentUser?.email || 'admin@heraldcollege.np';
 
   const activeRequests = requests.filter((request) => request.status !== 'completed');
@@ -372,6 +386,36 @@ export default function AdminDashboardScreen() {
 
     return () => clearInterval(intervalId);
   }, [loadAdminRequests, responderStatus]);
+
+  useEffect(() => {
+    if (responderStatus === 'unavailable') {
+      return undefined;
+    }
+
+    let isMounted = true;
+
+    const publishLocation = async () => {
+      const location = await getOptionalCurrentEmergencyLocation();
+
+      if (!location) {
+        return;
+      }
+
+      if (isMounted) {
+        setAdminLocation(location);
+      }
+
+      updateMyLocation(location).catch(() => undefined);
+    };
+
+    publishLocation();
+    const intervalId = setInterval(publishLocation, 10000);
+
+    return () => {
+      isMounted = false;
+      clearInterval(intervalId);
+    };
+  }, [responderStatus]);
 
   const metrics = [
     {
@@ -667,6 +711,27 @@ export default function AdminDashboardScreen() {
     </>
   );
 
+  const mapTargetLocation = assignedRequest?.requesterLocation || assignedRequest?.coordinates || null;
+  const mapDistance = mapTargetLocation ? calculateDistanceKm(adminLocation, mapTargetLocation) : null;
+  const mapEtaMinutes = mapDistance ? Math.max(2, Math.round((mapDistance / 24) * 60)) : null;
+
+  const openAdminMap = async () => {
+    if (!mapTargetLocation) {
+      Alert.alert('No active route', 'Accept a request first to open route directions.');
+      return;
+    }
+
+    const url = `https://www.openstreetmap.org/directions?engine=fossgis_osrm_car&route=${adminLocation.latitude}%2C${adminLocation.longitude}%3B${mapTargetLocation.latitude}%2C${mapTargetLocation.longitude}`;
+    const canOpen = await Linking.canOpenURL(url);
+
+    if (!canOpen) {
+      Alert.alert('Maps unavailable', 'OpenStreetMap could not be opened on this device.');
+      return;
+    }
+
+    await Linking.openURL(url);
+  };
+
   const renderMap = () => (
     <>
       <View style={styles.statusPanel}>
@@ -681,28 +746,46 @@ export default function AdminDashboardScreen() {
       </View>
 
       <View style={[styles.mapPanel, darkMode && styles.cardDark]}>
-        <View style={styles.mapGrid}>
-          <View style={styles.routeLine} />
-          <View style={[styles.mapMarker, styles.userMarker]}>
-            <Ionicons name="person" size={18} color="#FFFFFF" />
+        <TouchableOpacity activeOpacity={0.9} onPress={openAdminMap}>
+          <LeafletMap
+            userLocation={mapTargetLocation || adminLocation}
+            responderLocation={mapTargetLocation ? adminLocation : null}
+            userLabel={assignedRequest?.requester || 'Requester'}
+            responderLabel={savedName}
+            fallback={
+              <View style={styles.mapGrid}>
+              {mapTargetLocation && <View style={styles.routeLine} />}
+              <View style={[styles.mapMarker, styles.userMarker]}>
+                <Ionicons name="person" size={18} color="#FFFFFF" />
+              </View>
+              <View style={[styles.mapMarker, styles.providerMarker]}>
+                <MaterialCommunityIcons name={assignedRequest?.icon || 'account-hard-hat'} size={19} color="#FFFFFF" />
+              </View>
+              {mapTargetLocation && (
+                <>
+                  <View style={styles.routeDotOne} />
+                  <View style={styles.routeDotTwo} />
+                </>
+              )}
+              </View>
+            }
+          />
+          <View style={styles.mapOpenBadge}>
+            <Ionicons name="navigate" size={14} color="#FFFFFF" />
+            <Text style={styles.mapOpenText}>OpenStreetMap</Text>
           </View>
-          <View style={[styles.mapMarker, styles.providerMarker]}>
-            <MaterialCommunityIcons name={assignedRequest?.icon || 'ambulance'} size={19} color="#FFFFFF" />
-          </View>
-          <View style={styles.routeDotOne} />
-          <View style={styles.routeDotTwo} />
-        </View>
+        </TouchableOpacity>
         <View style={styles.mapInfo}>
           <Text style={[styles.mapTitle, darkMode && styles.textDark]}>{tr('routeTitle')}</Text>
-          <Text style={styles.mapText}>{assignedRequest?.location || 'Kathmandu Valley'}</Text>
+          <Text style={styles.mapText}>{assignedRequest?.location || `${adminLocation.latitude}, ${adminLocation.longitude}`}</Text>
         </View>
       </View>
 
       <View style={styles.providerGrid}>
         {[
-          { label: tr('responder'), value: savedName, icon: 'account-hard-hat' as const },
-          { label: tr('eta'), value: assignedRequest ? '6 min' : '--', icon: 'clock-fast' as const },
-          { label: tr('distance'), value: assignedRequest ? '1.8 km' : '--', icon: 'map-marker-distance' as const },
+          { label: tr('responder'), value: assignedRequest?.responderName || savedName, icon: 'account-hard-hat' as const },
+          { label: tr('eta'), value: mapEtaMinutes ? `${mapEtaMinutes} min` : '--', icon: 'clock-fast' as const },
+          { label: tr('distance'), value: mapDistance ? `${mapDistance.toFixed(1)} km` : '--', icon: 'map-marker-distance' as const },
         ].map((item) => (
           <View key={item.label} style={[styles.providerCard, darkMode && styles.cardDark]}>
             <View style={styles.providerIcon}>
@@ -845,6 +928,27 @@ export default function AdminDashboardScreen() {
       {renderRequestDetailsModal()}
     </SafeAreaView>
   );
+}
+
+function calculateDistanceKm(left: { latitude: string; longitude: string }, right: { latitude: string; longitude: string }) {
+  const leftLat = Number(left.latitude);
+  const leftLng = Number(left.longitude);
+  const rightLat = Number(right.latitude);
+  const rightLng = Number(right.longitude);
+
+  if ([leftLat, leftLng, rightLat, rightLng].some((value) => Number.isNaN(value))) {
+    return null;
+  }
+
+  const toRad = (value: number) => (value * Math.PI) / 180;
+  const earthRadiusKm = 6371;
+  const dLat = toRad(rightLat - leftLat);
+  const dLng = toRad(rightLng - leftLng);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(leftLat)) * Math.cos(toRad(rightLat)) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+
+  return earthRadiusKm * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
 const styles = StyleSheet.create({
@@ -1285,6 +1389,28 @@ const styles = StyleSheet.create({
     backgroundColor: '#EEF6F7',
     height: 190,
     position: 'relative',
+  },
+  mapImage: {
+    backgroundColor: '#EEF6F7',
+    height: 190,
+    width: '100%',
+  },
+  mapOpenBadge: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(26, 54, 93, 0.9)',
+    borderRadius: 8,
+    flexDirection: 'row',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    position: 'absolute',
+    right: 10,
+    top: 10,
+  },
+  mapOpenText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '900',
   },
   routeLine: {
     backgroundColor: BLUE,
