@@ -9,11 +9,20 @@ export async function getCurrentEmergencyLocation(): Promise<EmergencyLocation> 
   }
 
   const position = await Location.getCurrentPositionAsync({
-    accuracy: Location.Accuracy.High,
+    accuracy: Location.Accuracy.BestForNavigation,
+    mayShowUserSettingsDialog: true,
   });
 
   return {
     latitude: position.coords.latitude.toString(),
     longitude: position.coords.longitude.toString(),
   };
+}
+
+export async function getOptionalCurrentEmergencyLocation(): Promise<EmergencyLocation | null> {
+  try {
+    return await getCurrentEmergencyLocation();
+  } catch {
+    return null;
+  }
 }

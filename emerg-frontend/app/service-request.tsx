@@ -27,7 +27,6 @@ const BORDER = '#E2E8F0';
 const MUTED = '#718096';
 const SURFACE = '#F7FAFC';
 const dashboardRoute = '/dashboard' as Href;
-const trackRequestRoute = '/track-request' as Href;
 
 const serviceConfig: Record<ServiceType, { title: string; icon: keyof typeof MaterialCommunityIcons.glyphMap; color: string; helper: string }> = {
   ambulance: {
@@ -64,6 +63,7 @@ export default function ServiceRequestScreen() {
   const { darkMode } = useAppPreferences();
   const [description, setDescription] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSubmitted, setIsSubmitted] = useState(false);
   const serviceType = normalizeServiceType(params.serviceType);
   const service = useMemo(() => serviceConfig[serviceType], [serviceType]);
   const title = params.serviceLabel || service.title;
@@ -79,9 +79,7 @@ export default function ServiceRequestScreen() {
         userLocation: location,
       });
 
-      Alert.alert('Request sent', `Your location has been shared with ${title}.`, [
-        { text: 'Track request', onPress: () => router.replace(trackRequestRoute) },
-      ]);
+      setIsSubmitted(true);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to send this request right now.';
       Alert.alert('Request failed', message);
@@ -110,32 +108,54 @@ export default function ServiceRequestScreen() {
           </View>
 
           <View style={[styles.formCard, darkMode && styles.cardDark]}>
-            <Text style={[styles.label, darkMode && styles.textDark]}>What happened?</Text>
-            <TextInput
-              style={[styles.descriptionInput, darkMode && styles.inputDark]}
-              value={description}
-              onChangeText={setDescription}
-              multiline
-              textAlignVertical="top"
-              placeholder="Add details that can help responders"
-              placeholderTextColor={darkMode ? '#9CA3AF' : '#A0AEC0'}
-            />
+            {isSubmitted ? (
+              <View style={styles.submittedPanel}>
+                <View style={styles.submittedIcon}>
+                  <Ionicons name="checkmark" size={28} color="#FFFFFF" />
+                </View>
+                <Text style={[styles.submittedTitle, darkMode && styles.textDark]}>Request shared</Text>
+                <Text style={styles.submittedText}>
+                  Your message and live GPS point were sent to admins. You can keep this screen open or return home while the request waits for acceptance.
+                </Text>
+                <View style={styles.waitingRow}>
+                  <ActivityIndicator color={RED} />
+                  <Text style={styles.waitingText}>Waiting for an admin to accept</Text>
+                </View>
+                <TouchableOpacity style={styles.submitButton} onPress={() => router.replace(dashboardRoute)}>
+                  <Ionicons name="home-outline" size={18} color="#FFFFFF" />
+                  <Text style={styles.submitText}>Back to Dashboard</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <>
+                <Text style={[styles.label, darkMode && styles.textDark]}>What happened?</Text>
+                <TextInput
+                  style={[styles.descriptionInput, darkMode && styles.inputDark]}
+                  value={description}
+                  onChangeText={setDescription}
+                  multiline
+                  textAlignVertical="top"
+                  placeholder="Add details that can help responders"
+                  placeholderTextColor={darkMode ? '#9CA3AF' : '#A0AEC0'}
+                />
 
-            <View style={styles.locationNotice}>
-              <Ionicons name="location" size={18} color={RED} />
-              <Text style={styles.locationText}>Your current location will be shared after permission is granted.</Text>
-            </View>
+                <View style={styles.locationNotice}>
+                  <Ionicons name="locate" size={18} color={RED} />
+                  <Text style={styles.locationText}>High-accuracy GPS will be shared with admins after permission is granted.</Text>
+                </View>
 
-            <TouchableOpacity style={[styles.submitButton, isSubmitting && styles.buttonDisabled]} onPress={handleSubmit} disabled={isSubmitting}>
-              {isSubmitting ? (
-                <ActivityIndicator color="#FFFFFF" />
-              ) : (
-                <>
-                  <Ionicons name="send" size={18} color="#FFFFFF" />
-                  <Text style={styles.submitText}>Request Help</Text>
-                </>
-              )}
-            </TouchableOpacity>
+                <TouchableOpacity style={[styles.submitButton, isSubmitting && styles.buttonDisabled]} onPress={handleSubmit} disabled={isSubmitting}>
+                  {isSubmitting ? (
+                    <ActivityIndicator color="#FFFFFF" />
+                  ) : (
+                    <>
+                      <Ionicons name="send" size={18} color="#FFFFFF" />
+                      <Text style={styles.submitText}>Request Help</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </>
+            )}
           </View>
 
           <View style={{ height: 96 }} />
@@ -177,6 +197,12 @@ const styles = StyleSheet.create({
   submitButton: { alignItems: 'center', backgroundColor: RED, borderRadius: 8, flexDirection: 'row', gap: 8, height: 52, justifyContent: 'center', marginTop: 16 },
   buttonDisabled: { opacity: 0.7 },
   submitText: { color: '#FFFFFF', fontSize: 15, fontWeight: '900' },
+  submittedPanel: { alignItems: 'center' },
+  submittedIcon: { alignItems: 'center', backgroundColor: '#00A86B', borderRadius: 8, height: 56, justifyContent: 'center', marginBottom: 12, width: 56 },
+  submittedTitle: { color: NAVY, fontSize: 22, fontWeight: '900' },
+  submittedText: { color: MUTED, fontSize: 14, fontWeight: '600', lineHeight: 20, marginTop: 8, textAlign: 'center' },
+  waitingRow: { alignItems: 'center', backgroundColor: '#FFF7ED', borderRadius: 8, flexDirection: 'row', gap: 10, marginTop: 16, paddingHorizontal: 12, paddingVertical: 11, width: '100%' },
+  waitingText: { color: '#7C2D12', flex: 1, fontSize: 13, fontWeight: '800' },
   cardDark: { backgroundColor: '#121212', borderColor: '#2A2A2A' },
   textDark: { color: '#F9FAFB' },
 });

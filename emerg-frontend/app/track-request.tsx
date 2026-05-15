@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Alert,
   Image,
@@ -13,8 +13,17 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { Href, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AppBottomNav } from '@/components/app-bottom-nav';
+import { LeafletMap } from '@/src/components/leaflet-map';
 import { useAppPreferences } from '@/src/lib/app-preferences';
-import { getCurrentEmergencyLocation } from '@/src/lib/location';
+import {
+  EmergencyLocation,
+  EmergencyRequest,
+  EmergencyTrackingDetails,
+  getEmergencyRequestDetails,
+  getEmergencyRequests,
+  updateMyLocation,
+} from '@/src/lib/auth';
+import { getOptionalCurrentEmergencyLocation } from '@/src/lib/location';
 
 const RED = '#E63946';
 const NAVY = '#1A365D';
@@ -24,21 +33,17 @@ const MUTED = '#718096';
 const FAINT = '#A0AEC0';
 const BORDER = '#E2E8F0';
 const SURFACE = '#F7FAFC';
-const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY;
 
 const dashboardRoute = '/dashboard' as Href;
-const fallbackUserLocation = { latitude: '28.2096', longitude: '83.9856' };
-const providerLocation = { latitude: '28.2170', longitude: '83.9778' };
+const fallbackUserLocation = { latitude: '27.7112', longitude: '85.3388' };
 
-const providerDetails = [
-  { label: 'Unit', value: 'Ambulance A-04', icon: 'ambulance' },
-  { label: 'ETA', value: '6 min', icon: 'clock-fast' },
-  { label: 'Distance', value: '1.8 km', icon: 'map-marker-distance' },
-] as const satisfies readonly {
+const activeStatuses = ['pending', 'approved', 'assigned', 'in_progress'];
+
+type ProviderDetail = {
   label: string;
   value: string;
   icon: keyof typeof MaterialCommunityIcons.glyphMap;
-}[];
+};
 
 type TrackRequestContentProps = {
   bottomSpacer?: number;
@@ -48,59 +53,86 @@ type TrackRequestContentProps = {
 export function TrackRequestContent({ bottomSpacer = 96, onGoHome }: TrackRequestContentProps) {
   const router = useRouter();
   const { darkMode, t } = useAppPreferences();
-  const [userLocation, setUserLocation] = useState(fallbackUserLocation);
+  const [activeRequest, setActiveRequest] = useState<EmergencyRequest | null>(null);
+  const [trackingDetails, setTrackingDetails] = useState<EmergencyTrackingDetails | null>(null);
+  const [userLocation, setUserLocation] = useState<EmergencyLocation>(fallbackUserLocation);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     let isMounted = true;
 
-    getCurrentEmergencyLocation()
-      .then((location) => {
-        if (isMounted) {
-          setUserLocation(location);
+    const refreshTracking = async () => {
+      try {
+        const liveLocation = await getOptionalCurrentEmergencyLocation();
+
+        if (liveLocation) {
+          updateMyLocation(liveLocation).catch(() => undefined);
+          if (isMounted) {
+            setUserLocation(liveLocation);
+          }
         }
-      })
-      .catch(() => {
+
+        const requests = await getEmergencyRequests();
+        const nextActiveRequest = requests.find((request) => activeStatuses.includes(request.requestStatus || request.status || 'pending')) || null;
+
         if (isMounted) {
-          setUserLocation(fallbackUserLocation);
+          setActiveRequest(nextActiveRequest);
+          if (!nextActiveRequest) {
+            setTrackingDetails(null);
+          }
         }
-      });
+
+        const requestId = nextActiveRequest?.emergencyRequestId || nextActiveRequest?.id;
+
+        if (requestId) {
+          const details = await getEmergencyRequestDetails(requestId);
+
+          if (isMounted) {
+            setTrackingDetails(details);
+            setUserLocation(liveLocation || details.requester?.currentLocation || details.coordinates || nextActiveRequest.location || fallbackUserLocation);
+          }
+        }
+      } catch {
+        if (isMounted) {
+          setTrackingDetails(null);
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    refreshTracking();
+    const intervalId = setInterval(refreshTracking, 10000);
 
     return () => {
       isMounted = false;
+      clearInterval(intervalId);
     };
   }, []);
 
-  const mapImageUrl = useMemo(() => {
-    if (!GOOGLE_MAPS_API_KEY) {
-      return null;
-    }
+  const responderLocation = trackingDetails?.responderDetails?.currentLocation || null;
+  const responderName = trackingDetails?.responderDetails?.name || 'Assigned admin';
+  const requestStatus = trackingDetails?.requestStatus || activeRequest?.requestStatus || activeRequest?.status || 'pending';
+  const isAccepted = requestStatus === 'approved' || requestStatus === 'assigned' || requestStatus === 'in_progress';
+  const routeDistance = responderLocation ? calculateDistanceKm(responderLocation, userLocation) : null;
+  const etaMinutes = routeDistance ? Math.max(2, Math.round((routeDistance / 24) * 60)) : null;
 
-    const origin = `${providerLocation.latitude},${providerLocation.longitude}`;
-    const destination = `${userLocation.latitude},${userLocation.longitude}`;
-    const params = new URLSearchParams({
-      center: destination,
-      zoom: '14',
-      size: '640x360',
-      scale: '2',
-      maptype: 'roadmap',
-      markers: `color:red|label:A|${origin}`,
-      path: `color:0x3182CEFF|weight:5|${origin}|${destination}`,
-      key: GOOGLE_MAPS_API_KEY,
-    });
+  const providerDetails: ProviderDetail[] = [
+    { label: 'Responder', value: isAccepted ? responderName : 'Waiting', icon: 'account-hard-hat' },
+    { label: 'ETA', value: etaMinutes ? `${etaMinutes} min` : '--', icon: 'clock-fast' },
+    { label: 'Distance', value: routeDistance ? `${routeDistance.toFixed(1)} km` : '--', icon: 'map-marker-distance' },
+  ];
 
-    params.append('markers', `color:blue|label:U|${destination}`);
-
-    return `https://maps.googleapis.com/maps/api/staticmap?${params.toString()}`;
-  }, [userLocation]);
-
-  const openGoogleMaps = async () => {
-    const destination = `${userLocation.latitude},${userLocation.longitude}`;
-    const origin = `${providerLocation.latitude},${providerLocation.longitude}`;
-    const url = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}&travelmode=driving`;
+  const openOpenStreetMap = async () => {
+    const url = responderLocation
+      ? `https://www.openstreetmap.org/directions?engine=fossgis_osrm_car&route=${responderLocation.latitude}%2C${responderLocation.longitude}%3B${userLocation.latitude}%2C${userLocation.longitude}`
+      : `https://www.openstreetmap.org/?mlat=${userLocation.latitude}&mlon=${userLocation.longitude}#map=16/${userLocation.latitude}/${userLocation.longitude}`;
     const canOpen = await Linking.canOpenURL(url);
 
     if (!canOpen) {
-      Alert.alert('Maps unavailable', 'Google Maps could not be opened on this device.');
+      Alert.alert('Maps unavailable', 'OpenStreetMap could not be opened on this device.');
       return;
     }
 
@@ -119,18 +151,20 @@ export function TrackRequestContent({ bottomSpacer = 96, onGoHome }: TrackReques
         <View style={styles.statusPanel}>
           <View style={styles.statusTopRow}>
             <View style={styles.statusIconWrap}>
-              <MaterialCommunityIcons name="ambulance" size={38} color="#FFFFFF" />
+              <MaterialCommunityIcons name={isAccepted ? 'map-marker-path' : 'timer-sand'} size={38} color="#FFFFFF" />
             </View>
             <View style={styles.statusTextWrap}>
-              <Text style={styles.statusEyebrow}>{t('liveTracking')}</Text>
-              <Text style={styles.statusTitle}>{t('providerOnWay')}</Text>
-              <Text style={styles.statusSubtitle}>{t('providerSubtitle')}</Text>
+              <Text style={styles.statusEyebrow}>{isAccepted ? t('liveTracking') : 'Request submitted'}</Text>
+              <Text style={styles.statusTitle}>{isAccepted ? t('providerOnWay') : 'Waiting for acceptance'}</Text>
+              <Text style={styles.statusSubtitle}>
+                {isAccepted ? `${responderName} can now track your live GPS location.` : 'Admins can see your request. Live responder tracking starts after one accepts it.'}
+              </Text>
             </View>
           </View>
 
           <View style={styles.etaRow}>
             <View>
-              <Text style={styles.etaValue}>6 min</Text>
+              <Text style={styles.etaValue}>{etaMinutes ? `${etaMinutes} min` : isLoading ? '...' : '--'}</Text>
               <Text style={styles.etaLabel}>{t('estimatedArrival')}</Text>
             </View>
             <View style={styles.liveBadge}>
@@ -141,29 +175,37 @@ export function TrackRequestContent({ bottomSpacer = 96, onGoHome }: TrackReques
         </View>
 
         <View style={[styles.mapPanel, darkMode && styles.cardDark]}>
-          <TouchableOpacity activeOpacity={0.9} onPress={openGoogleMaps}>
-            {mapImageUrl ? (
-              <Image source={{ uri: mapImageUrl }} style={styles.mapImage} resizeMode="cover" />
-            ) : (
-              <View style={styles.mapGrid}>
-                <View style={styles.routeLine} />
+          <TouchableOpacity activeOpacity={0.9} onPress={openOpenStreetMap}>
+            <LeafletMap
+              userLocation={userLocation}
+              responderLocation={responderLocation}
+              userLabel="Your location"
+              responderLabel={responderName}
+              fallback={
+                <View style={styles.mapGrid}>
+                {responderLocation && <View style={styles.routeLine} />}
                 <View style={[styles.mapMarker, styles.userMarker]}>
                   <Ionicons name="person" size={18} color="#FFFFFF" />
                 </View>
-                <View style={[styles.mapMarker, styles.providerMarker]}>
-                  <MaterialCommunityIcons name="ambulance" size={19} color="#FFFFFF" />
+                {responderLocation && (
+                  <>
+                    <View style={[styles.mapMarker, styles.providerMarker]}>
+                      <MaterialCommunityIcons name="account-hard-hat" size={19} color="#FFFFFF" />
+                    </View>
+                    <View style={styles.routeDotOne} />
+                    <View style={styles.routeDotTwo} />
+                  </>
+                )}
                 </View>
-                <View style={styles.routeDotOne} />
-                <View style={styles.routeDotTwo} />
-              </View>
-            )}
+              }
+            />
             <View style={styles.mapOpenBadge}>
               <Ionicons name="navigate" size={14} color="#FFFFFF" />
-              <Text style={styles.mapOpenText}>Google Maps</Text>
+              <Text style={styles.mapOpenText}>OpenStreetMap</Text>
             </View>
           </TouchableOpacity>
           <View style={styles.mapInfo}>
-            <Text style={[styles.mapTitle, darkMode && styles.textDark]}>{t('routeTitle')}</Text>
+            <Text style={[styles.mapTitle, darkMode && styles.textDark]}>{isAccepted ? t('routeTitle') : 'Shared request location'}</Text>
             <Text style={styles.mapText}>
               {userLocation.latitude}, {userLocation.longitude}
             </Text>
@@ -196,6 +238,27 @@ export function TrackRequestContent({ bottomSpacer = 96, onGoHome }: TrackReques
         <View style={{ height: bottomSpacer }} />
       </ScrollView>
   );
+}
+
+function calculateDistanceKm(left: EmergencyLocation, right: EmergencyLocation) {
+  const leftLat = Number(left.latitude);
+  const leftLng = Number(left.longitude);
+  const rightLat = Number(right.latitude);
+  const rightLng = Number(right.longitude);
+
+  if ([leftLat, leftLng, rightLat, rightLng].some((value) => Number.isNaN(value))) {
+    return null;
+  }
+
+  const toRad = (value: number) => (value * Math.PI) / 180;
+  const earthRadiusKm = 6371;
+  const dLat = toRad(rightLat - leftLat);
+  const dLng = toRad(rightLng - leftLng);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(leftLat)) * Math.cos(toRad(rightLat)) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+
+  return earthRadiusKm * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
 export default function TrackRequestScreen() {
