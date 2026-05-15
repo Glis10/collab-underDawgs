@@ -40,7 +40,12 @@ const providerDetails = [
   icon: keyof typeof MaterialCommunityIcons.glyphMap;
 }[];
 
-export default function TrackRequestScreen() {
+type TrackRequestContentProps = {
+  bottomSpacer?: number;
+  onGoHome?: () => void;
+};
+
+export function TrackRequestContent({ bottomSpacer = 96, onGoHome }: TrackRequestContentProps) {
   const router = useRouter();
   const { darkMode, t } = useAppPreferences();
   const [userLocation, setUserLocation] = useState(fallbackUserLocation);
@@ -103,7 +108,6 @@ export default function TrackRequestScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, darkMode && styles.containerDark]} edges={['top', 'left', 'right']}>
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <Image source={require('../assets/logo.png')} style={styles.logo} resizeMode="contain" />
@@ -183,14 +187,23 @@ export default function TrackRequestScreen() {
             <Ionicons name="call-outline" size={18} color={RED} />
             <Text style={styles.secondaryActionText}>{t('callProvider')}</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.primaryAction} activeOpacity={0.8} onPress={() => router.replace(dashboardRoute)}>
+          <TouchableOpacity style={styles.primaryAction} activeOpacity={0.8} onPress={onGoHome ?? (() => router.replace(dashboardRoute))}>
             <Ionicons name="home-outline" size={18} color="#FFFFFF" />
             <Text style={styles.primaryActionText}>{t('home')}</Text>
           </TouchableOpacity>
         </View>
 
-        <View style={{ height: 96 }} />
+        <View style={{ height: bottomSpacer }} />
       </ScrollView>
+  );
+}
+
+export default function TrackRequestScreen() {
+  const { darkMode } = useAppPreferences();
+
+  return (
+    <SafeAreaView style={[styles.container, darkMode && styles.containerDark]} edges={['top', 'left', 'right']}>
+      <TrackRequestContent bottomSpacer={96} />
 
       <AppBottomNav activeTab="Track" />
     </SafeAreaView>

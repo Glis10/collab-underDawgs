@@ -28,16 +28,26 @@ const tabs = [
 
 type AppBottomNavProps = {
   activeTab: AppTab;
+  onTabPress?: (tab: AppTab) => void;
 };
 
-export function AppBottomNav({ activeTab }: AppBottomNavProps) {
+export function AppBottomNav({ activeTab, onTabPress }: AppBottomNavProps) {
   const router = useRouter();
   const { darkMode, t } = useAppPreferences();
 
   const handlePress = (tab: AppTab) => {
+    if (tab === activeTab) {
+      return;
+    }
+
+    if (onTabPress) {
+      onTabPress(tab);
+      return;
+    }
+
     const route = routes[tab];
 
-    if (!route || tab === activeTab) {
+    if (!route) {
       return;
     }
 

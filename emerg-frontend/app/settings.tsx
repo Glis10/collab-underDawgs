@@ -64,7 +64,11 @@ function SettingRow({ icon, label, value, onValueChange, onPress }: SettingRowPr
   );
 }
 
-export default function SettingsScreen() {
+type SettingsContentProps = {
+  bottomSpacer?: number;
+};
+
+export function SettingsContent({ bottomSpacer = 96 }: SettingsContentProps) {
   const router = useRouter();
   const navigation = useNavigation();
   const currentUser = getCurrentUser();
@@ -137,7 +141,6 @@ export default function SettingsScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, darkMode && styles.containerDark]} edges={['top', 'left', 'right']}>
       <ScrollView contentContainerStyle={[styles.scrollContent, darkMode && styles.scrollContentDark]} showsVerticalScrollIndicator={false}>
         <View style={[styles.profileSection, darkMode && styles.profileSectionDark]}>
           <View style={styles.avatarOuter}>
@@ -230,8 +233,17 @@ export default function SettingsScreen() {
           <Text style={styles.logoutText}>{t('logout')}</Text>
         </TouchableOpacity>
 
-        <View style={{ height: 96 }} />
+        <View style={{ height: bottomSpacer }} />
       </ScrollView>
+  );
+}
+
+export default function SettingsScreen() {
+  const { darkMode } = useAppPreferences();
+
+  return (
+    <SafeAreaView style={[styles.container, darkMode && styles.containerDark]} edges={['top', 'left', 'right']}>
+      <SettingsContent bottomSpacer={96} />
 
       <AppBottomNav activeTab="Settings" />
     </SafeAreaView>
