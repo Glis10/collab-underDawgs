@@ -1,6 +1,8 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
+  Alert,
   Image,
+  Linking,
   ScrollView,
   StyleSheet,
   Text,
@@ -12,6 +14,7 @@ import { Href, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AppBottomNav } from '@/components/app-bottom-nav';
 import { useAppPreferences } from '@/src/lib/app-preferences';
+import { getCurrentEmergencyLocation } from '@/src/lib/location';
 
 const RED = '#E63946';
 const NAVY = '#1A365D';
@@ -21,8 +24,11 @@ const MUTED = '#718096';
 const FAINT = '#A0AEC0';
 const BORDER = '#E2E8F0';
 const SURFACE = '#F7FAFC';
+const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY;
 
 const dashboardRoute = '/dashboard' as Href;
+const fallbackUserLocation = { latitude: '28.2096', longitude: '83.9856' };
+const providerLocation = { latitude: '28.2170', longitude: '83.9778' };
 
 const providerDetails = [
   { label: 'Unit', value: 'Ambulance A-04', icon: 'ambulance' },
@@ -37,6 +43,64 @@ const providerDetails = [
 export default function TrackRequestScreen() {
   const router = useRouter();
   const { darkMode, t } = useAppPreferences();
+  const [userLocation, setUserLocation] = useState(fallbackUserLocation);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    getCurrentEmergencyLocation()
+      .then((location) => {
+        if (isMounted) {
+          setUserLocation(location);
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setUserLocation(fallbackUserLocation);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const mapImageUrl = useMemo(() => {
+    if (!GOOGLE_MAPS_API_KEY) {
+      return null;
+    }
+
+    const origin = `${providerLocation.latitude},${providerLocation.longitude}`;
+    const destination = `${userLocation.latitude},${userLocation.longitude}`;
+    const params = new URLSearchParams({
+      center: destination,
+      zoom: '14',
+      size: '640x360',
+      scale: '2',
+      maptype: 'roadmap',
+      markers: `color:red|label:A|${origin}`,
+      path: `color:0x3182CEFF|weight:5|${origin}|${destination}`,
+      key: GOOGLE_MAPS_API_KEY,
+    });
+
+    params.append('markers', `color:blue|label:U|${destination}`);
+
+    return `https://maps.googleapis.com/maps/api/staticmap?${params.toString()}`;
+  }, [userLocation]);
+
+  const openGoogleMaps = async () => {
+    const destination = `${userLocation.latitude},${userLocation.longitude}`;
+    const origin = `${providerLocation.latitude},${providerLocation.longitude}`;
+    const url = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}&travelmode=driving`;
+    const canOpen = await Linking.canOpenURL(url);
+
+    if (!canOpen) {
+      Alert.alert('Maps unavailable', 'Google Maps could not be opened on this device.');
+      return;
+    }
+
+    await Linking.openURL(url);
+  };
 
   return (
     <SafeAreaView style={[styles.container, darkMode && styles.containerDark]} edges={['top', 'left', 'right']}>
@@ -73,20 +137,32 @@ export default function TrackRequestScreen() {
         </View>
 
         <View style={[styles.mapPanel, darkMode && styles.cardDark]}>
-          <View style={styles.mapGrid}>
-            <View style={styles.routeLine} />
-            <View style={[styles.mapMarker, styles.userMarker]}>
-              <Ionicons name="person" size={18} color="#FFFFFF" />
+          <TouchableOpacity activeOpacity={0.9} onPress={openGoogleMaps}>
+            {mapImageUrl ? (
+              <Image source={{ uri: mapImageUrl }} style={styles.mapImage} resizeMode="cover" />
+            ) : (
+              <View style={styles.mapGrid}>
+                <View style={styles.routeLine} />
+                <View style={[styles.mapMarker, styles.userMarker]}>
+                  <Ionicons name="person" size={18} color="#FFFFFF" />
+                </View>
+                <View style={[styles.mapMarker, styles.providerMarker]}>
+                  <MaterialCommunityIcons name="ambulance" size={19} color="#FFFFFF" />
+                </View>
+                <View style={styles.routeDotOne} />
+                <View style={styles.routeDotTwo} />
+              </View>
+            )}
+            <View style={styles.mapOpenBadge}>
+              <Ionicons name="navigate" size={14} color="#FFFFFF" />
+              <Text style={styles.mapOpenText}>Google Maps</Text>
             </View>
-            <View style={[styles.mapMarker, styles.providerMarker]}>
-              <MaterialCommunityIcons name="ambulance" size={19} color="#FFFFFF" />
-            </View>
-            <View style={styles.routeDotOne} />
-            <View style={styles.routeDotTwo} />
-          </View>
+          </TouchableOpacity>
           <View style={styles.mapInfo}>
             <Text style={[styles.mapTitle, darkMode && styles.textDark]}>{t('routeTitle')}</Text>
-            <Text style={styles.mapText}>Lakeside Road, Pokhara</Text>
+            <Text style={styles.mapText}>
+              {userLocation.latitude}, {userLocation.longitude}
+            </Text>
           </View>
         </View>
 
@@ -255,6 +331,28 @@ const styles = StyleSheet.create({
     backgroundColor: '#EEF6F7',
     height: 190,
     position: 'relative',
+  },
+  mapImage: {
+    backgroundColor: '#EEF6F7',
+    height: 190,
+    width: '100%',
+  },
+  mapOpenBadge: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(26, 54, 93, 0.9)',
+    borderRadius: 8,
+    flexDirection: 'row',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    position: 'absolute',
+    right: 10,
+    top: 10,
+  },
+  mapOpenText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '900',
   },
   routeLine: {
     backgroundColor: BLUE,

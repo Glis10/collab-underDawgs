@@ -76,6 +76,36 @@ type EmergencyContactInput = {
   phoneNumber: string;
 };
 
+export type EmergencyLocation = {
+  latitude: string;
+  longitude: string;
+};
+
+export type EmergencyRequest = {
+  id: string;
+  userId: string;
+  serviceType?: ServiceType;
+  emergencyType?: ServiceType;
+  requestStatus?: string;
+  status?: string;
+  requestTime?: string;
+  dispatchTime?: string | null;
+  arrivalTime?: string | null;
+  description?: string;
+  emergencyDescription?: string;
+  location?: EmergencyLocation;
+  emergencyLocation?: EmergencyLocation;
+  currentLocation?: EmergencyLocation;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+type EmergencyRequestInput = {
+  emergencyType: ServiceType;
+  emergencyDescription: string;
+  userLocation: EmergencyLocation;
+};
+
 export const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL;
 
 let authToken: string | null = null;
@@ -237,6 +267,29 @@ export async function createServiceProviderCredentials(input: ServiceProviderInp
   });
 }
 
+export async function createEmergencyRequest(input: EmergencyRequestInput): Promise<{ emergencyRequest: EmergencyRequest }> {
+  const token = requireAuthToken('Please sign in again before requesting emergency help.');
+
+  return apiRequest<{ emergencyRequest: EmergencyRequest }>('/v1/emergency-request', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(input),
+  });
+}
+
+export async function getEmergencyRequests(): Promise<EmergencyRequest[]> {
+  const token = requireAuthToken('Please sign in again before loading emergency requests.');
+
+  return apiRequest<EmergencyRequest[]>('/v1/emergency-request/recent', {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+}
+
 export async function forgotPassword(email: string): Promise<{ userId: string }> {
   return apiRequest<{ userId: string }>('/auth/forgot-password', {
     method: 'POST',
@@ -257,9 +310,9 @@ export async function resetPassword(input: ResetPasswordInput): Promise<{ messag
   });
 }
 
-function requireAuthToken() {
+function requireAuthToken(message = 'Please sign in again before managing emergency contacts.') {
   if (!authToken) {
-    throw new Error('Please sign in again before managing emergency contacts.');
+    throw new Error(message);
   }
 
   return authToken;
