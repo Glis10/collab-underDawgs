@@ -1,4 +1,7 @@
 import { AppBottomNav } from '@/components/app-bottom-nav';
+import { ContactsContent } from '@/app/contacts';
+import { SettingsContent } from '@/app/settings';
+import { TrackRequestContent } from '@/app/track-request';
 import { useAppPreferences } from '@/src/lib/app-preferences';
 import { createEmergencyRequest, getCurrentUser } from '@/src/lib/auth';
 import { getCurrentEmergencyLocation } from '@/src/lib/location';
@@ -8,8 +11,6 @@ import React, { useState } from 'react';
 import { ActivityIndicator, Alert, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-const trackRequestRoute = '/track-request' as Href;
-const settingsRoute = '/settings' as Href;
 const RED = '#E63946';
 const NAVY = '#1A365D';
 const GREEN = '#00A86B';
@@ -18,6 +19,7 @@ const MUTED = '#718096';
 const FAINT = '#A0AEC0';
 const BORDER = '#E2E8F0';
 const SURFACE = '#F7FAFC';
+type UserTab = 'Home' | 'Contacts' | 'Track' | 'Settings';
 
 const emergencyActions = [
   { labelKey: 'policeHelp', icon: 'police-badge', tone: '#E63946', serviceType: 'police' },
@@ -41,6 +43,7 @@ export default function DashboardScreen() {
   const router = useRouter();
   const currentUser = getCurrentUser();
   const { darkMode, t } = useAppPreferences();
+  const [activeTab, setActiveTab] = useState<UserTab>('Home');
   const [isSendingSos, setIsSendingSos] = useState(false);
   const fullName = currentUser?.name?.trim();
   const firstName = fullName?.split(/\s+/)[0] || fullName || 'User';
@@ -67,7 +70,7 @@ export default function DashboardScreen() {
       );
 
       Alert.alert('SOS sent', 'Your location has been shared with all emergency services.', [
-        { text: 'Track request', onPress: () => router.replace(trackRequestRoute) },
+        { text: 'Track request', onPress: () => setActiveTab('Track') },
       ]);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to send SOS right now.';
@@ -92,15 +95,14 @@ export default function DashboardScreen() {
     Alert.alert('Emergency Drill', 'Practice mode is ready. Hold the SOS button for 3 seconds when this is a real emergency.');
   };
 
-  return (
-    <SafeAreaView style={[styles.container, darkMode && styles.containerDark]} edges={['top', 'left', 'right']}>
+  const renderHome = () => (
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <Image source={require('../assets/logo.png')} style={styles.logo} resizeMode="contain" />
           <TouchableOpacity
             style={[styles.profileButton, darkMode && styles.profileButtonDark]}
             activeOpacity={0.8}
-            onPress={() => router.replace(settingsRoute)}
+            onPress={() => setActiveTab('Settings')}
           >
             <Ionicons name="person" size={20} color={darkMode ? '#F9FAFB' : NAVY} />
           </TouchableOpacity>
@@ -169,7 +171,7 @@ export default function DashboardScreen() {
             <Ionicons name="refresh-circle-outline" size={18} color={darkMode ? '#F9FAFB' : NAVY} />
             <Text style={[styles.utilityText, darkMode && styles.textDark]}>{t('emergencyDrill')}</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.utilityButton, darkMode && styles.cardDark]} activeOpacity={0.8} onPress={() => router.replace(trackRequestRoute)}>
+          <TouchableOpacity style={[styles.utilityButton, darkMode && styles.cardDark]} activeOpacity={0.8} onPress={() => setActiveTab('Track')}>
             <Ionicons name="navigate-circle-outline" size={18} color={darkMode ? '#F9FAFB' : NAVY} />
             <Text style={[styles.utilityText, darkMode && styles.textDark]}>{t('trackActive')}</Text>
           </TouchableOpacity>
@@ -188,7 +190,7 @@ export default function DashboardScreen() {
               <Text style={[styles.gridItemText, darkMode && styles.textDark]}>{t(action.labelKey)}</Text>
             </TouchableOpacity>
           ))}
-          <TouchableOpacity style={[styles.gridItem, darkMode && styles.cardDark]} onPress={() => router.replace(trackRequestRoute)}>
+          <TouchableOpacity style={[styles.gridItem, darkMode && styles.cardDark]} onPress={() => setActiveTab('Track')}>
             <View style={styles.gridIcon}>
               <Ionicons name="navigate" size={31} color={RED} />
             </View>
@@ -221,8 +223,29 @@ export default function DashboardScreen() {
 
         <View style={{ height: 96 }} />
       </ScrollView>
+  );
 
-      <AppBottomNav activeTab="Home" />
+  const renderContent = () => {
+    if (activeTab === 'Contacts') {
+      return <ContactsContent bottomSpacer={96} />;
+    }
+
+    if (activeTab === 'Track') {
+      return <TrackRequestContent bottomSpacer={96} onGoHome={() => setActiveTab('Home')} />;
+    }
+
+    if (activeTab === 'Settings') {
+      return <SettingsContent bottomSpacer={96} />;
+    }
+
+    return renderHome();
+  };
+
+  return (
+    <SafeAreaView style={[styles.container, darkMode && styles.containerDark]} edges={['top', 'left', 'right']}>
+      {renderContent()}
+
+      <AppBottomNav activeTab={activeTab} onTabPress={setActiveTab} />
     </SafeAreaView>
   );
 }
