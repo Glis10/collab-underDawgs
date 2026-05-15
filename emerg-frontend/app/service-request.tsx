@@ -19,7 +19,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-type ServiceType = 'ambulance' | 'police' | 'rescue_team' | 'fire_truck';
+type ServiceType = 'ambulance' | 'police' | 'fire_truck';
 
 const RED = '#E63946';
 const NAVY = '#1A365D';
@@ -48,16 +48,10 @@ const serviceConfig: Record<ServiceType, { title: string; icon: keyof typeof Mat
     color: '#DD6B20',
     helper: 'For fire, smoke, gas leak, or trapped-person emergencies.',
   },
-  rescue_team: {
-    title: 'Rescue Team',
-    icon: 'account-hard-hat',
-    color: '#00A86B',
-    helper: 'For disaster, flood, landslide, or search and rescue support.',
-  },
 };
 
 function normalizeServiceType(value?: string): ServiceType {
-  if (value === 'police' || value === 'rescue_team' || value === 'fire_truck') {
+  if (value === 'police' || value === 'fire_truck') {
     return value;
   }
 

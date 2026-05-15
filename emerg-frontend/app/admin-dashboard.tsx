@@ -1,7 +1,8 @@
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { Href, useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   Image,
   ScrollView,
@@ -14,7 +15,16 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAppPreferences } from '@/src/lib/app-preferences';
-import { getCurrentUser, logoutUser, updateCurrentUserName } from '@/src/lib/auth';
+import {
+  AdminEmergencyRequest,
+  approveAdminEmergencyRequest,
+  getAdminEmergencyRequests,
+  getCurrentUser,
+  logoutUser,
+  rejectAdminEmergencyRequest,
+  resolveAdminEmergencyRequest,
+  updateCurrentUserName,
+} from '@/src/lib/auth';
 
 const RED = '#E63946';
 const NAVY = '#1A365D';
@@ -76,7 +86,7 @@ type AdminTextKey =
   | 'logoutConfirmTitle'
   | 'logoutConfirmMessage';
 
-type EmergencyRequest = {
+type DashboardEmergencyRequest = {
   id: string;
   type: string;
   requester: string;
@@ -96,39 +106,6 @@ const adminTabs = [
   label: AdminTab;
   icon: keyof typeof Ionicons.glyphMap;
 }[];
-
-const initialRequests: EmergencyRequest[] = [
-  {
-    id: 'req-1',
-    type: 'Ambulance',
-    requester: 'Maya Gurung',
-    location: 'Lakeside Road, Pokhara',
-    time: '2 min ago',
-    status: 'incoming',
-    color: RED,
-    icon: 'ambulance',
-  },
-  {
-    id: 'req-2',
-    type: 'Fire Rescue',
-    requester: 'Niraj Shrestha',
-    location: 'New Baneshwor, Kathmandu',
-    time: '9 min ago',
-    status: 'incoming',
-    color: '#ECC94B',
-    icon: 'fire-truck',
-  },
-  {
-    id: 'req-3',
-    type: 'Police Help',
-    requester: 'Asha Thapa',
-    location: 'Itahari Main Chowk',
-    time: '18 min ago',
-    status: 'completed',
-    color: BLUE,
-    icon: 'police-badge-outline',
-  },
-];
 
 const text: Record<'en' | 'ne', Record<AdminTextKey, string>> = {
   en: {
@@ -257,14 +234,87 @@ function SettingRow({ icon, label, value, onValueChange, onPress }: SettingRowPr
   );
 }
 
+function getServiceDetails(request: AdminEmergencyRequest) {
+  const serviceType = request.serviceType || (request.emergencyType === 'medical' ? 'ambulance' : request.emergencyType);
+
+  if (serviceType === 'police') {
+    return {
+      type: 'Police Help',
+      icon: 'police-badge-outline' as const,
+      color: RED,
+    };
+  }
+
+  if (serviceType === 'fire_truck' || serviceType === 'fire') {
+    return {
+      type: 'Fire Rescue',
+      icon: 'fire-truck' as const,
+      color: '#DD6B20',
+    };
+  }
+
+  return {
+    type: 'Ambulance',
+    icon: 'ambulance' as const,
+    color: BLUE,
+  };
+}
+
+function mapRequestStatus(status: string): RequestStatus {
+  if (status === 'completed') {
+    return 'completed';
+  }
+
+  if (status === 'approved' || status === 'assigned' || status === 'in_progress') {
+    return 'assigned';
+  }
+
+  return 'incoming';
+}
+
+function formatRequestTime(value?: string) {
+  if (!value) {
+    return 'Just now';
+  }
+
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(new Date(value));
+}
+
+function formatLocation(location?: { latitude: string; longitude: string } | null) {
+  if (!location?.latitude || !location.longitude) {
+    return 'Location unavailable';
+  }
+
+  return `${location.latitude}, ${location.longitude}`;
+}
+
+function toDashboardRequest(request: AdminEmergencyRequest): DashboardEmergencyRequest {
+  const service = getServiceDetails(request);
+
+  return {
+    id: request.id,
+    type: service.type,
+    requester: request.requester?.name || `User ${request.userId.slice(0, 8)}`,
+    location: formatLocation(request.coordinates || request.requester?.currentLocation),
+    time: formatRequestTime(request.tracking?.requestedAt || request.timestamp),
+    status: mapRequestStatus(request.requestStatus),
+    icon: service.icon,
+    color: service.color,
+  };
+}
+
 export default function AdminDashboardScreen() {
   const router = useRouter();
   const currentUser = getCurrentUser();
   const { darkMode, language, setDarkMode, setLanguage } = useAppPreferences();
   const tr = (key: AdminTextKey) => text[language][key];
   const [activeTab, setActiveTab] = useState<AdminTab>('Overview');
-  const [requests, setRequests] = useState<EmergencyRequest[]>(initialRequests);
+  const [requests, setRequests] = useState<DashboardEmergencyRequest[]>([]);
   const [responderStatus, setResponderStatus] = useState<ResponderStatus>('available');
+  const [isLoadingRequests, setIsLoadingRequests] = useState(false);
   const [notifications, setNotifications] = useState(true);
   const [isEditingName, setIsEditingName] = useState(false);
   const [savedName, setSavedName] = useState(currentUser?.name || 'Admin');
@@ -278,6 +328,46 @@ export default function AdminDashboardScreen() {
   const respondersOnline = responderStatus === 'unavailable' ? 0 : 1;
 
   const currentPageTitle = activeTab === 'Resolved' ? tr('resolved') : tr(activeTab.toLowerCase() as AdminTextKey);
+
+  const loadAdminRequests = useCallback(async (silent = false) => {
+    if (responderStatus === 'unavailable') {
+      setRequests([]);
+      return;
+    }
+
+    try {
+      setIsLoadingRequests(true);
+      const [active, completed] = await Promise.all([
+        getAdminEmergencyRequests('active'),
+        getAdminEmergencyRequests('completed'),
+      ]);
+      setRequests([...active, ...completed].map(toDashboardRequest));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to load emergency requests.';
+      if (!silent) {
+        Alert.alert('Requests unavailable', message);
+      }
+      setRequests([]);
+    } finally {
+      setIsLoadingRequests(false);
+    }
+  }, [responderStatus]);
+
+  useEffect(() => {
+    loadAdminRequests();
+  }, [loadAdminRequests]);
+
+  useEffect(() => {
+    if (responderStatus === 'unavailable') {
+      return undefined;
+    }
+
+    const intervalId = setInterval(() => {
+      loadAdminRequests(true);
+    }, 15000);
+
+    return () => clearInterval(intervalId);
+  }, [loadAdminRequests, responderStatus]);
 
   const metrics = [
     {
@@ -304,30 +394,52 @@ export default function AdminDashboardScreen() {
   ];
 
   const setAvailability = () => {
-    setResponderStatus((current) => (current === 'available' ? 'unavailable' : 'available'));
+    setResponderStatus((current) => {
+      const next = current === 'available' ? 'unavailable' : 'available';
+
+      if (next === 'unavailable') {
+        setRequests([]);
+      }
+
+      return next;
+    });
   };
 
-  const handleAcceptRequest = (id: string) => {
+  const handleAcceptRequest = async (id: string) => {
     if (responderStatus === 'unavailable') {
       Alert.alert(tr('unavailable'), tr('noIncoming'));
       return;
     }
 
-    setRequests((current) =>
-      current.map((request) => (request.id === id ? { ...request, status: 'assigned' } : request))
-    );
-    setResponderStatus('busy');
+    try {
+      await approveAdminEmergencyRequest(id);
+      await loadAdminRequests();
+      setResponderStatus('busy');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to accept this request.';
+      Alert.alert('Accept failed', message);
+    }
   };
 
-  const handleDeclineRequest = (id: string) => {
-    setRequests((current) => current.filter((request) => request.id !== id));
+  const handleDeclineRequest = async (id: string) => {
+    try {
+      await rejectAdminEmergencyRequest(id);
+      await loadAdminRequests();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to decline this request.';
+      Alert.alert('Decline failed', message);
+    }
   };
 
-  const handleCompleteRequest = (id: string) => {
-    setRequests((current) =>
-      current.map((request) => (request.id === id ? { ...request, status: 'completed' } : request))
-    );
-    setResponderStatus('available');
+  const handleCompleteRequest = async (id: string) => {
+    try {
+      await resolveAdminEmergencyRequest(id);
+      await loadAdminRequests();
+      setResponderStatus('available');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to resolve this request.';
+      Alert.alert('Resolve failed', message);
+    }
   };
 
   const confirmLogout = () => {
@@ -356,7 +468,7 @@ export default function AdminDashboardScreen() {
     setIsEditingName(false);
   };
 
-  const renderRequestCard = (request: EmergencyRequest) => (
+  const renderRequestCard = (request: DashboardEmergencyRequest) => (
     <View key={request.id} style={[styles.requestCard, darkMode && styles.cardDark]}>
       <View style={[styles.requestIcon, { backgroundColor: `${request.color}18` }]}>
         <MaterialCommunityIcons name={request.icon} size={28} color={request.color} />
@@ -467,7 +579,7 @@ export default function AdminDashboardScreen() {
           <Text style={styles.sectionAction}>{tr('viewAlerts')}</Text>
         </TouchableOpacity>
       </View>
-      {activeRequests.length > 0 ? activeRequests.map(renderRequestCard) : <Text style={styles.emptyText}>{tr('noIncoming')}</Text>}
+      {isLoadingRequests ? <ActivityIndicator color={RED} /> : activeRequests.length > 0 ? activeRequests.map(renderRequestCard) : <Text style={styles.emptyText}>{tr('noIncoming')}</Text>}
     </>
   );
 
@@ -476,7 +588,7 @@ export default function AdminDashboardScreen() {
       <View style={styles.sectionHeader}>
         <Text style={[styles.sectionTitle, darkMode && styles.textDark]}>{tr('incomingRequests')}</Text>
       </View>
-      {activeRequests.length > 0 ? activeRequests.map(renderRequestCard) : <Text style={styles.emptyText}>{tr('noIncoming')}</Text>}
+      {isLoadingRequests ? <ActivityIndicator color={RED} /> : activeRequests.length > 0 ? activeRequests.map(renderRequestCard) : <Text style={styles.emptyText}>{tr('noIncoming')}</Text>}
     </>
   );
 
@@ -485,7 +597,7 @@ export default function AdminDashboardScreen() {
       <View style={styles.sectionHeader}>
         <Text style={[styles.sectionTitle, darkMode && styles.textDark]}>{tr('resolvedRequests')}</Text>
       </View>
-      {resolvedRequests.map((request) => (
+      {isLoadingRequests ? <ActivityIndicator color={RED} /> : resolvedRequests.length > 0 ? resolvedRequests.map((request) => (
         <View key={request.id} style={[styles.requestCard, darkMode && styles.cardDark]}>
           <View style={[styles.requestIcon, { backgroundColor: `${GREEN}18` }]}>
             <MaterialCommunityIcons name="check-decagram-outline" size={28} color={GREEN} />
@@ -499,7 +611,7 @@ export default function AdminDashboardScreen() {
             </View>
           </View>
         </View>
-      ))}
+      )) : <Text style={styles.emptyText}>{tr('noIncoming')}</Text>}
     </>
   );
 

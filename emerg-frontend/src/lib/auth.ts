@@ -20,7 +20,7 @@ type AuthPayload = {
   user: AuthUser;
 };
 
-type ServiceType = 'ambulance' | 'police' | 'rescue_team' | 'fire_truck';
+type ServiceType = 'ambulance' | 'police' | 'fire_truck';
 
 type ServiceProviderInput = {
   name: string;
@@ -98,6 +98,50 @@ export type EmergencyRequest = {
   currentLocation?: EmergencyLocation;
   createdAt?: string;
   updatedAt?: string;
+};
+
+export type AdminEmergencyRequest = {
+  id: string;
+  userId: string;
+  emergencyType?: 'medical' | 'police' | 'fire';
+  serviceType?: ServiceType;
+  coordinates?: EmergencyLocation;
+  timestamp?: string;
+  description?: string;
+  requestStatus: string;
+  status?: string;
+  requester?: {
+    id: string;
+    name: string;
+    phoneNumber?: string;
+    email?: string;
+    currentLocation?: EmergencyLocation | null;
+  } | null;
+  responderDetails?: {
+    id: string;
+    name: string;
+    serviceType: ServiceType;
+    serviceStatus: string;
+    phoneNumber?: string;
+    currentLocation?: EmergencyLocation | null;
+  } | null;
+  tracking?: {
+    requestedAt?: string;
+    approvedAt?: string | null;
+    dispatchedAt?: string | null;
+    arrivedAt?: string | null;
+    lastUpdatedAt?: string;
+  };
+};
+
+type AdminEmergencyListPayload = {
+  emergencies: AdminEmergencyRequest[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
 };
 
 type EmergencyRequestInput = {
@@ -287,6 +331,55 @@ export async function getEmergencyRequests(): Promise<EmergencyRequest[]> {
     headers: {
       Authorization: `Bearer ${token}`,
     },
+  });
+}
+
+export async function getAdminEmergencyRequests(status: 'active' | 'completed' | 'rejected' = 'active'): Promise<AdminEmergencyRequest[]> {
+  const token = requireAuthToken('Please sign in as admin before loading emergency requests.');
+
+  const payload = await apiRequest<AdminEmergencyListPayload>(`/admin/emergencies?status=${status}`, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  return payload.emergencies;
+}
+
+export async function approveAdminEmergencyRequest(id: string): Promise<AdminEmergencyRequest> {
+  const token = requireAuthToken('Please sign in as admin before accepting emergency requests.');
+
+  return apiRequest<AdminEmergencyRequest>(`/admin/emergencies/${id}/approve`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ note: 'Accepted from admin dashboard' }),
+  });
+}
+
+export async function rejectAdminEmergencyRequest(id: string): Promise<AdminEmergencyRequest> {
+  const token = requireAuthToken('Please sign in as admin before declining emergency requests.');
+
+  return apiRequest<AdminEmergencyRequest>(`/admin/emergencies/${id}/reject`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ reason: 'Declined from admin dashboard' }),
+  });
+}
+
+export async function resolveAdminEmergencyRequest(id: string): Promise<AdminEmergencyRequest> {
+  const token = requireAuthToken('Please sign in as admin before resolving emergency requests.');
+
+  return apiRequest<AdminEmergencyRequest>(`/emergency/${id}/status`, {
+    method: 'PUT',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ status: 'resolved' }),
   });
 }
 
