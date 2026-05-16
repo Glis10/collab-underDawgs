@@ -26,3 +26,26 @@ export async function getOptionalCurrentEmergencyLocation(): Promise<EmergencyLo
     return null;
   }
 }
+
+export async function watchEmergencyLocation(onLocation: (location: EmergencyLocation) => void): Promise<Location.LocationSubscription | null> {
+  const permission = await Location.requestForegroundPermissionsAsync();
+
+  if (permission.status !== Location.PermissionStatus.GRANTED) {
+    return null;
+  }
+
+  return Location.watchPositionAsync(
+    {
+      accuracy: Location.Accuracy.BestForNavigation,
+      distanceInterval: 5,
+      mayShowUserSettingsDialog: true,
+      timeInterval: 3000,
+    },
+    (position) => {
+      onLocation({
+        latitude: position.coords.latitude.toString(),
+        longitude: position.coords.longitude.toString(),
+      });
+    }
+  );
+}

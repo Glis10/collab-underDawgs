@@ -84,6 +84,7 @@ export default function ServiceRequestScreen() {
         emergencyType: serviceType,
         emergencyDescription: description.trim() || `${title} emergency request.`,
         userLocation: location,
+        locationSource: locationMode,
       });
 
       setIsSubmitted(true);
@@ -122,7 +123,7 @@ export default function ServiceRequestScreen() {
                 </View>
                 <Text style={[styles.submittedTitle, darkMode && styles.textDark]}>Request shared</Text>
                 <Text style={styles.submittedText}>
-                  Your message and live GPS point were sent to admins. You can keep this screen open or return home while the request waits for acceptance.
+                  Your message and selected response location were sent to admins. You can keep this screen open or return home while the request waits for acceptance.
                 </Text>
                 <View style={styles.waitingRow}>
                   <ActivityIndicator color={RED} />

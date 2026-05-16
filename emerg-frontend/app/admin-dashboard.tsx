@@ -10,7 +10,6 @@ import {
   StyleSheet,
   Switch,
   Text,
-  TextInput,
   TouchableOpacity,
   useWindowDimensions,
   View,
@@ -27,10 +26,10 @@ import {
   logoutUser,
   rejectAdminEmergencyRequest,
   resolveAdminEmergencyRequest,
-  updateMyProfile,
   updateMyLocation,
 } from '@/src/lib/auth';
-import { getOptionalCurrentEmergencyLocation } from '@/src/lib/location';
+import { getOptionalCurrentEmergencyLocation, watchEmergencyLocation } from '@/src/lib/location';
+import { extractRouteCoordinates } from '@/src/lib/routes';
 
 const RED = '#E63946';
 const NAVY = '#1A365D';
@@ -90,6 +89,17 @@ type AdminTextKey =
   | 'saveName'
   | 'fullName'
   | 'cancel'
+  | 'viewFullDetails'
+  | 'critical'
+  | 'onTheWay'
+  | 'accepted'
+  | 'location'
+  | 'requestedAt'
+  | 'problemMessage'
+  | 'liveRoute'
+  | 'standbyMap'
+  | 'liveTracking'
+  | 'noAcceptedRequest'
   | 'logoutConfirmTitle'
   | 'logoutConfirmMessage';
 
@@ -163,6 +173,17 @@ const text: Record<'en' | 'ne', Record<AdminTextKey, string>> = {
     saveName: 'Save Name',
     fullName: 'Full name',
     cancel: 'Cancel',
+    viewFullDetails: 'View full details',
+    critical: 'Critical',
+    onTheWay: 'On the way',
+    accepted: 'Accepted',
+    location: 'Location',
+    requestedAt: 'Requested at',
+    problemMessage: 'Problem message',
+    liveRoute: 'Live route',
+    standbyMap: 'Standby map',
+    liveTracking: 'Live Tracking',
+    noAcceptedRequest: 'No accepted request',
     logoutConfirmTitle: 'Logout?',
     logoutConfirmMessage: 'Are you sure you want to logout?',
   },
@@ -208,6 +229,17 @@ const text: Record<'en' | 'ne', Record<AdminTextKey, string>> = {
     saveName: 'नाम सेभ',
     fullName: 'पूरा नाम',
     cancel: 'रद्द',
+    viewFullDetails: 'पूरा विवरण हेर्नुहोस्',
+    critical: 'गम्भीर',
+    onTheWay: 'बाटोमा',
+    accepted: 'स्वीकार गरिएको',
+    location: 'स्थान',
+    requestedAt: 'अनुरोध समय',
+    problemMessage: 'समस्या सन्देश',
+    liveRoute: 'लाइभ बाटो',
+    standbyMap: 'स्ट्यान्डबाइ नक्सा',
+    liveTracking: 'लाइभ ट्र्याकिङ',
+    noAcceptedRequest: 'स्वीकार गरिएको अनुरोध छैन',
     logoutConfirmTitle: 'लगआउट गर्ने?',
     logoutConfirmMessage: 'के तपाईं पक्का लगआउट गर्न चाहनुहुन्छ?',
   },
@@ -228,7 +260,7 @@ function SettingRow({ icon, label, value, onValueChange, onPress }: SettingRowPr
   return (
     <TouchableOpacity style={styles.settingRow} activeOpacity={onPress ? 0.75 : 1} disabled={!onPress} onPress={onPress}>
       <View style={styles.settingLabelWrap}>
-        <View style={styles.settingIconWrap}>
+        <View style={[styles.settingIconWrap, darkMode && styles.settingIconWrapDark]}>
           <Ionicons name={icon} size={22} color={RED} />
         </View>
         <Text style={[styles.settingLabel, darkMode && styles.textDark]}>{label}</Text>
@@ -313,7 +345,7 @@ function toDashboardRequest(request: AdminEmergencyRequest): DashboardEmergencyR
     requester: request.requester?.name || `User ${request.userId.slice(0, 8)}`,
     location: request.locationName || request.requester?.primaryAddress || formatLocation(request.coordinates || request.requester?.currentLocation),
     coordinates: request.coordinates || null,
-    requesterLocation: request.requester?.currentLocation || request.coordinates || null,
+    requesterLocation: request.coordinates || request.requester?.currentLocation || null,
     responderLocation: request.responderDetails?.currentLocation || null,
     responderName: request.responderDetails?.name,
     isCritical: (request.description || '').toLowerCase().includes('sos'),
@@ -337,12 +369,9 @@ export default function AdminDashboardScreen() {
   const [isLoadingRequests, setIsLoadingRequests] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState<DashboardEmergencyRequest | null>(null);
   const [notifications, setNotifications] = useState(true);
-  const [isEditingName, setIsEditingName] = useState(false);
-  const [isSavingName, setIsSavingName] = useState(false);
-  const [savedName, setSavedName] = useState(currentUser?.name || 'Admin');
-  const [draftName, setDraftName] = useState(currentUser?.name || 'Admin');
   const [adminLocation, setAdminLocation] = useState(currentUser?.currentLocation || fallbackAdminLocation);
   const [roadRoute, setRoadRoute] = useState<{ latitude: string; longitude: string }[]>([]);
+  const displayName = currentUser?.name || 'Admin';
   const displayEmail = currentUser?.email || 'admin@heraldcollege.np';
 
   const activeRequests = requests.filter((request) => request.status !== 'completed');
@@ -437,10 +466,9 @@ export default function AdminDashboardScreen() {
     }
 
     let isMounted = true;
+    let subscription: { remove: () => void } | null = null;
 
-    const publishLocation = async () => {
-      const location = await getOptionalCurrentEmergencyLocation();
-
+    const publishLocation = (location: { latitude: string; longitude: string } | null) => {
       if (!location) {
         return;
       }
@@ -452,11 +480,20 @@ export default function AdminDashboardScreen() {
       updateMyLocation(location).catch(() => undefined);
     };
 
-    publishLocation();
-    const intervalId = setInterval(publishLocation, 10000);
+    getOptionalCurrentEmergencyLocation().then(publishLocation);
+    watchEmergencyLocation(publishLocation)
+      .then((nextSubscription) => {
+        subscription = nextSubscription;
+      })
+      .catch(() => undefined);
+
+    const intervalId = setInterval(async () => {
+      publishLocation(await getOptionalCurrentEmergencyLocation());
+    }, 5000);
 
     return () => {
       isMounted = false;
+      subscription?.remove();
       clearInterval(intervalId);
     };
   }, [responderStatus]);
@@ -551,27 +588,6 @@ export default function AdminDashboardScreen() {
     ]);
   };
 
-  const handleSaveName = async () => {
-    const nextName = draftName.trim();
-
-    if (!nextName) {
-      return;
-    }
-
-    try {
-      setIsSavingName(true);
-      const user = await updateMyProfile({ name: nextName });
-      setSavedName(user.name);
-      setDraftName(user.name);
-      setIsEditingName(false);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unable to update your name right now.';
-      Alert.alert('Name update failed', message);
-    } finally {
-      setIsSavingName(false);
-    }
-  };
-
   const renderRequestCard = (request: DashboardEmergencyRequest) => (
     <View key={request.id} style={[styles.requestCard, darkMode && styles.cardDark]}>
       <View style={[styles.requestIcon, { backgroundColor: `${request.color}18` }]}>
@@ -583,7 +599,7 @@ export default function AdminDashboardScreen() {
             <Text style={[styles.requestType, darkMode && styles.textDark]}>{request.type}</Text>
             {request.isCritical && (
               <View style={styles.criticalBadge}>
-                <Text style={styles.criticalBadgeText}>CRITICAL</Text>
+                <Text style={styles.criticalBadgeText}>{tr('critical')}</Text>
               </View>
             )}
           </View>
@@ -598,13 +614,13 @@ export default function AdminDashboardScreen() {
           {request.description}
         </Text>
         <TouchableOpacity style={styles.detailsButton} activeOpacity={0.8} onPress={() => setSelectedRequest(request)}>
-          <Text style={styles.detailsButtonText}>View full details</Text>
+          <Text style={styles.detailsButtonText}>{tr('viewFullDetails')}</Text>
         </TouchableOpacity>
 
         {request.status === 'assigned' ? (
           <View style={styles.requestActions}>
             <View style={styles.assignedBadge}>
-              <Text style={styles.statusText}>On the way</Text>
+              <Text style={styles.statusText}>{tr('onTheWay')}</Text>
             </View>
             <TouchableOpacity style={styles.completeButton} activeOpacity={0.8} onPress={() => handleCompleteRequest(request.id)}>
               <Text style={styles.completeButtonText}>{tr('completed')}</Text>
@@ -639,13 +655,13 @@ export default function AdminDashboardScreen() {
             <Text style={styles.detailsLabel}>{tr('requester')}</Text>
             <Text style={[styles.detailsValue, darkMode && styles.textDark]}>{selectedRequest?.requester}</Text>
 
-            <Text style={styles.detailsLabel}>Location</Text>
+            <Text style={styles.detailsLabel}>{tr('location')}</Text>
             <Text style={[styles.detailsValue, darkMode && styles.textDark]}>{selectedRequest?.location}</Text>
 
-            <Text style={styles.detailsLabel}>Requested at</Text>
+            <Text style={styles.detailsLabel}>{tr('requestedAt')}</Text>
             <Text style={[styles.detailsValue, darkMode && styles.textDark]}>{selectedRequest?.time}</Text>
 
-            <Text style={styles.detailsLabel}>Problem message</Text>
+            <Text style={styles.detailsLabel}>{tr('problemMessage')}</Text>
             <Text style={[styles.detailsMessage, darkMode && styles.textDark]}>{selectedRequest?.description}</Text>
           </ScrollView>
 
@@ -662,7 +678,7 @@ export default function AdminDashboardScreen() {
           {selectedRequest && selectedRequest.status === 'assigned' && (
             <View style={styles.detailsActions}>
               <View style={[styles.assignedBadge, styles.detailsStatusBadge]}>
-                <Text style={styles.statusText}>Accepted</Text>
+                <Text style={styles.statusText}>{tr('accepted')}</Text>
               </View>
               <TouchableOpacity style={styles.completeButton} activeOpacity={0.8} onPress={() => handleCompleteRequest(selectedRequest.id)}>
                 <Text style={styles.completeButtonText}>{tr('completed')}</Text>
@@ -702,7 +718,7 @@ export default function AdminDashboardScreen() {
       <View style={styles.titleRow}>
         <View>
           <Text style={styles.eyebrow}>{tr('welcomeBack')}</Text>
-          <Text style={[styles.title, darkMode && styles.textDark]}>{savedName}</Text>
+          <Text style={[styles.title, darkMode && styles.textDark]}>{displayName}</Text>
         </View>
       </View>
     </>
@@ -802,32 +818,25 @@ export default function AdminDashboardScreen() {
             responderLocation={mapTargetLocation ? adminLocation : null}
             routeCoordinates={roadRoute}
             userLabel={assignedRequest?.requester || 'Requester'}
-            responderLabel={savedName}
+            responderLabel={displayName}
             height={360}
-            fitMaxZoom={13}
-            zoomEnabled={false}
+            fitMaxZoom={12}
+            zoomEnabled
             fallback={
               <View style={styles.adminMapGrid}>
-              {mapTargetLocation && <View style={styles.routeLine} />}
               <View style={[styles.mapMarker, styles.userMarker]}>
                 <Ionicons name="person" size={18} color="#FFFFFF" />
               </View>
               <View style={[styles.mapMarker, styles.providerMarker]}>
                 <MaterialCommunityIcons name={assignedRequest?.icon || 'account-hard-hat'} size={19} color="#FFFFFF" />
               </View>
-              {mapTargetLocation && (
-                <>
-                  <View style={styles.routeDotOne} />
-                  <View style={styles.routeDotTwo} />
-                </>
-              )}
               </View>
             }
           />
           <View style={styles.adminMapOverlay}>
             <View style={styles.liveBadgeLight}>
               <View style={styles.availabilityDot} />
-              <Text style={styles.liveBadgeLightText}>{assignedRequest ? 'Live route' : 'Standby map'}</Text>
+              <Text style={styles.liveBadgeLightText}>{assignedRequest ? tr('liveRoute') : tr('standbyMap')}</Text>
             </View>
           </View>
         </View>
@@ -841,7 +850,7 @@ export default function AdminDashboardScreen() {
 
       <View style={styles.providerGrid}>
         {[
-          { label: tr('responder'), value: assignedRequest?.responderName || savedName, icon: 'account-hard-hat' as const },
+          { label: tr('responder'), value: assignedRequest?.responderName || displayName, icon: 'account-hard-hat' as const },
           { label: tr('eta'), value: mapEtaMinutes ? `${mapEtaMinutes} min` : '--', icon: 'clock-fast' as const },
           { label: tr('distance'), value: mapDistance ? `${mapDistance.toFixed(1)} km` : '--', icon: 'map-marker-distance' as const },
         ].map((item) => (
@@ -865,33 +874,21 @@ export default function AdminDashboardScreen() {
           <View style={styles.avatarBody} />
         </View>
         <View style={[styles.namePill, darkMode && styles.cardDark]}>
-          <Text style={[styles.profileName, darkMode && styles.textDark]}>{savedName}</Text>
+          <Text style={[styles.profileName, darkMode && styles.textDark]}>{displayName}</Text>
           <Text style={[styles.profileEmail, darkMode && styles.mutedTextDark]}>{displayEmail}</Text>
         </View>
       </View>
 
       <View style={[styles.settingsCard, darkMode && styles.cardDark]}>
         <Text style={[styles.settingsSectionTitle, darkMode && styles.textDark]}>{tr('personalInfo')}</Text>
-        <SettingRow icon="person-outline" label={tr('editName')} onPress={() => setIsEditingName((current) => !current)} />
-        {isEditingName && (
-          <View style={styles.editPanel}>
-            <TextInput
-              style={[styles.nameInput, darkMode && styles.inputDark]}
-              value={draftName}
-              onChangeText={setDraftName}
-              placeholder={tr('fullName')}
-              placeholderTextColor={darkMode ? '#858B98' : '#A0AEC0'}
-            />
-            <View style={styles.editActions}>
-              <TouchableOpacity style={styles.cancelButton} onPress={() => setIsEditingName(false)} disabled={isSavingName}>
-                <Text style={styles.cancelButtonText}>{tr('cancel')}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.saveButton, isSavingName && styles.buttonDisabled]} onPress={handleSaveName} disabled={isSavingName}>
-                {isSavingName ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.saveButtonText}>{tr('saveName')}</Text>}
-              </TouchableOpacity>
+        <View style={styles.settingRow}>
+          <View style={styles.settingLabelWrap}>
+            <View style={[styles.settingIconWrap, darkMode && styles.settingIconWrapDark]}>
+              <Ionicons name="person-outline" size={22} color={RED} />
             </View>
+            <Text style={[styles.settingLabel, darkMode && styles.textDark]}>{displayName}</Text>
           </View>
-        )}
+        </View>
 
         <Text style={[styles.settingsSectionTitle, styles.sectionGap, darkMode && styles.textDark]}>{tr('preference')}</Text>
         <SettingRow icon="moon" label={tr('darkMode')} value={darkMode} onValueChange={setDarkMode} />
@@ -900,12 +897,12 @@ export default function AdminDashboardScreen() {
         <Text style={[styles.settingsSectionTitle, styles.sectionGap, darkMode && styles.textDark]}>{tr('language')}</Text>
         <View style={styles.settingRow}>
           <View style={styles.settingLabelWrap}>
-            <View style={styles.settingIconWrap}>
+            <View style={[styles.settingIconWrap, darkMode && styles.settingIconWrapDark]}>
               <MaterialCommunityIcons name="translate" size={22} color={RED} />
             </View>
             <Text style={[styles.settingLabel, darkMode && styles.textDark]}>{language === 'ne' ? tr('nepali') : tr('english')}</Text>
           </View>
-          <View style={styles.languageToggle}>
+          <View style={[styles.languageToggle, darkMode && styles.languageToggleDark]}>
             <TouchableOpacity style={[styles.languageOption, language === 'en' && styles.languageOptionActive]} onPress={() => setLanguage('en')}>
               <Text style={[styles.languageText, language === 'en' && styles.languageTextActive]}>{tr('english')}</Text>
             </TouchableOpacity>
@@ -946,7 +943,7 @@ export default function AdminDashboardScreen() {
   };
 
   if (activeTab === 'Map') {
-    const responderLabel = assignedRequest?.responderName || savedName;
+    const responderLabel = assignedRequest?.responderName || displayName;
     const fullMapHeight = Math.max(560, Math.round(viewportHeight));
 
     return (
@@ -963,11 +960,10 @@ export default function AdminDashboardScreen() {
             responderMarkerColor={GREEN}
             responderMarkerText="A"
             height={fullMapHeight}
-            fitMaxZoom={15}
-            zoomEnabled={false}
+            fitMaxZoom={12}
+            zoomEnabled
             fallback={
               <View style={styles.fullMapFallback}>
-                {mapTargetLocation && <View style={styles.fullMapRouteLine} />}
                 <View style={[styles.mapMarker, styles.fullMapUserMarker]}>
                   <MaterialCommunityIcons name={assignedRequest?.icon || 'alert'} size={18} color="#FFFFFF" />
                 </View>
@@ -985,8 +981,8 @@ export default function AdminDashboardScreen() {
               <Ionicons name="chevron-back" size={24} color={darkMode ? '#FFFFFF' : NAVY} />
             </TouchableOpacity>
             <View style={styles.fullMapTitleWrap}>
-              <Text style={[styles.fullMapTitle, darkMode && styles.textDark]}>Live Tracking</Text>
-              <Text style={styles.fullMapSubtitle}>{assignedRequest?.requester || 'No accepted request'}</Text>
+              <Text style={[styles.fullMapTitle, darkMode && styles.textDark]}>{tr('liveTracking')}</Text>
+              <Text style={styles.fullMapSubtitle}>{assignedRequest?.requester || tr('noAcceptedRequest')}</Text>
             </View>
           </View>
 
@@ -1095,58 +1091,6 @@ function calculateDistanceKm(left: { latitude: string; longitude: string }, righ
   return earthRadiusKm * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-function extractRouteCoordinates(value: unknown): { latitude: string; longitude: string }[] {
-  const candidates: { latitude: string; longitude: string }[][] = [];
-
-  const visit = (node: unknown) => {
-    if (!node) {
-      return;
-    }
-
-    if (Array.isArray(node)) {
-      const coordinateList = node
-        .map((item) => {
-          if (Array.isArray(item) && item.length >= 2) {
-            const lng = Number(item[0]);
-            const lat = Number(item[1]);
-
-            if (!Number.isNaN(lat) && !Number.isNaN(lng)) {
-              return { latitude: lat.toString(), longitude: lng.toString() };
-            }
-          }
-
-          if (typeof item === 'object' && item !== null) {
-            const record = item as Record<string, unknown>;
-            const lat = Number(record.lat ?? record.latitude);
-            const lng = Number(record.lng ?? record.lon ?? record.longitude);
-
-            if (!Number.isNaN(lat) && !Number.isNaN(lng)) {
-              return { latitude: lat.toString(), longitude: lng.toString() };
-            }
-          }
-
-          return null;
-        })
-        .filter((item): item is { latitude: string; longitude: string } => Boolean(item));
-
-      if (coordinateList.length > 1) {
-        candidates.push(coordinateList);
-      }
-
-      node.forEach(visit);
-      return;
-    }
-
-    if (typeof node === 'object') {
-      Object.values(node as Record<string, unknown>).forEach(visit);
-    }
-  };
-
-  visit(value);
-
-  return candidates.sort((left, right) => right.length - left.length)[0] || [];
-}
-
 const styles = StyleSheet.create({
   container: {
     backgroundColor: '#FFFFFF',
@@ -1165,16 +1109,6 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 560,
     position: 'relative',
-  },
-  fullMapRouteLine: {
-    backgroundColor: '#1D4ED8',
-    borderRadius: 5,
-    height: 9,
-    left: '28%',
-    position: 'absolute',
-    top: '44%',
-    transform: [{ rotate: '-64deg' }],
-    width: '52%',
   },
   fullMapUserMarker: {
     backgroundColor: RED,
@@ -1802,17 +1736,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '900',
   },
-  routeLine: {
-    backgroundColor: BLUE,
-    borderRadius: 3,
-    height: 6,
-    left: 68,
-    opacity: 0.65,
-    position: 'absolute',
-    top: 94,
-    transform: [{ rotate: '-24deg' }],
-    width: 230,
-  },
   mapMarker: {
     alignItems: 'center',
     borderColor: '#FFFFFF',
@@ -1832,24 +1755,6 @@ const styles = StyleSheet.create({
     backgroundColor: RED,
     right: 44,
     top: 35,
-  },
-  routeDotOne: {
-    backgroundColor: BLUE,
-    borderRadius: 6,
-    height: 12,
-    left: 138,
-    position: 'absolute',
-    top: 111,
-    width: 12,
-  },
-  routeDotTwo: {
-    backgroundColor: BLUE,
-    borderRadius: 5,
-    height: 10,
-    position: 'absolute',
-    right: 122,
-    top: 73,
-    width: 10,
   },
   mapInfo: {
     padding: 14,
@@ -2000,66 +1905,25 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '800',
   },
-  editPanel: {
-    marginBottom: 6,
-    marginTop: 8,
-  },
-  nameInput: {
-    backgroundColor: SURFACE,
-    borderColor: BORDER,
-    borderRadius: 10,
-    borderWidth: 1,
-    color: '#111827',
-    fontSize: 16,
-    minHeight: 48,
-    paddingHorizontal: 13,
-  },
   inputDark: {
     backgroundColor: '#080808',
     borderColor: '#2B2B2B',
     color: '#FFFFFF',
   },
-  editActions: {
-    flexDirection: 'row',
-    gap: 10,
-    justifyContent: 'flex-end',
-    marginTop: 10,
-  },
-  cancelButton: {
-    alignItems: 'center',
-    borderColor: BORDER,
-    borderRadius: 8,
-    borderWidth: 1,
-    justifyContent: 'center',
-    minHeight: 40,
-    paddingHorizontal: 14,
-  },
-  cancelButtonText: {
-    color: MUTED,
-    fontSize: 13,
-    fontWeight: '800',
-  },
-  saveButton: {
-    alignItems: 'center',
-    backgroundColor: RED,
-    borderRadius: 8,
-    justifyContent: 'center',
-    minHeight: 40,
-    paddingHorizontal: 16,
+  settingIconWrapDark: {
+    backgroundColor: '#1A0D10',
   },
   buttonDisabled: {
     opacity: 0.7,
-  },
-  saveButtonText: {
-    color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '900',
   },
   languageToggle: {
     backgroundColor: '#F4F6FA',
     borderRadius: 12,
     flexDirection: 'row',
     padding: 4,
+  },
+  languageToggleDark: {
+    backgroundColor: '#050505',
   },
   languageOption: {
     borderRadius: 10,

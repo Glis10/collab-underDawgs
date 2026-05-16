@@ -67,7 +67,22 @@ type TranslationKey =
   | 'passwordHelpTwo'
   | 'passwordHelpThree'
   | 'logoutConfirmTitle'
-  | 'logoutConfirmMessage';
+  | 'logoutConfirmMessage'
+  | 'checkingRequests'
+  | 'noServiceRequested'
+  | 'requestHelpFirst'
+  | 'requestSubmitted'
+  | 'waitingAcceptance'
+  | 'adminsCanSeeRequest'
+  | 'responders'
+  | 'waiting'
+  | 'eta'
+  | 'distance'
+  | 'sharedRequestLocation'
+  | 'criticalSosTracking'
+  | 'responderUnavailable'
+  | 'responderPhoneUnavailable'
+  | 'dialerUnavailable';
 
 const translations: Record<Language, Record<TranslationKey, string>> = {
   en: {
@@ -136,6 +151,21 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     passwordHelpThree: 'Create a new password with at least 8 characters.',
     logoutConfirmTitle: 'Logout?',
     logoutConfirmMessage: 'Are you sure you want to logout?',
+    checkingRequests: 'Checking your service requests...',
+    noServiceRequested: 'No service requested',
+    requestHelpFirst: 'Request ambulance, police, or fire help first, then live tracking will appear here.',
+    requestSubmitted: 'Request submitted',
+    waitingAcceptance: 'Waiting for acceptance',
+    adminsCanSeeRequest: 'Admins can see your request. Live responder tracking starts after one accepts it.',
+    responders: 'Responders',
+    waiting: 'Waiting',
+    eta: 'ETA',
+    distance: 'Distance',
+    sharedRequestLocation: 'Shared request location',
+    criticalSosTracking: 'Critical SOS: tracking ambulance, police, and fire response',
+    responderUnavailable: 'Responder unavailable',
+    responderPhoneUnavailable: 'A responder phone number is not available yet.',
+    dialerUnavailable: 'Dialer unavailable',
   },
   ne: {
     home: 'गृह',
@@ -203,6 +233,21 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     passwordHelpThree: 'कम्तीमा ८ अक्षरको नयाँ पासवर्ड बनाउनुहोस्।',
     logoutConfirmTitle: 'लगआउट गर्ने?',
     logoutConfirmMessage: 'के तपाईं पक्का लगआउट गर्न चाहनुहुन्छ?',
+    checkingRequests: 'तपाईंका सेवा अनुरोधहरू जाँच हुँदैछन्...',
+    noServiceRequested: 'सेवा अनुरोध गरिएको छैन',
+    requestHelpFirst: 'पहिले एम्बुलेन्स, प्रहरी वा दमकल सहयोग अनुरोध गर्नुहोस्, त्यसपछि लाइभ ट्र्याकिङ यहाँ देखिन्छ।',
+    requestSubmitted: 'अनुरोध पठाइयो',
+    waitingAcceptance: 'स्वीकारको प्रतीक्षा',
+    adminsCanSeeRequest: 'प्रशासकहरूले तपाईंको अनुरोध देख्न सक्छन्। कसैले स्वीकारेपछि लाइभ उद्धारकर्ता ट्र्याकिङ सुरु हुन्छ।',
+    responders: 'उद्धारकर्ता',
+    waiting: 'प्रतीक्षा',
+    eta: 'आगमन समय',
+    distance: 'दूरी',
+    sharedRequestLocation: 'साझा गरिएको अनुरोध स्थान',
+    criticalSosTracking: 'गम्भीर SOS: एम्बुलेन्स, प्रहरी र दमकल प्रतिक्रिया ट्र्याक हुँदैछ',
+    responderUnavailable: 'उद्धारकर्ता उपलब्ध छैन',
+    responderPhoneUnavailable: 'उद्धारकर्ताको फोन नम्बर अझै उपलब्ध छैन।',
+    dialerUnavailable: 'डायलर उपलब्ध छैन',
   },
 };
 
