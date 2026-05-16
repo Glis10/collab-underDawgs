@@ -129,7 +129,7 @@ function buildLeafletHtml({
         keyboard: ${zoomEnabled},
         scrollWheelZoom: ${zoomEnabled},
         touchZoom: ${zoomEnabled},
-        zoomControl: false
+        zoomControl: ${zoomEnabled}
       }).setView(user, 15);
 
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -197,14 +197,18 @@ function buildLeafletHtml({
           fillOpacity: 1
         }).addTo(map).bindPopup(responder.label);
 
-        L.polyline(routeCoordinates.length > 1 ? routeCoordinates : [responder.point, user], {
+        bounds.push(responder.point);
+      });
+
+      if (routeCoordinates.length > 1) {
+        L.polyline(routeCoordinates, {
           color: '#3182CE',
           weight: 5,
           opacity: 0.75
         }).addTo(map);
 
-        bounds.push(responder.point);
-      });
+        routeCoordinates.forEach((point) => bounds.push(point));
+      }
 
       if (bounds.length > 1) {
         map.fitBounds(bounds, { padding: [36, 36], maxZoom: ${fitMaxZoom} });
@@ -302,7 +306,11 @@ function buildGalliHtml({
       .trip-marker.user { background: ${userMarkerColor}; }
       .trip-marker.responder { background: ${responderMarkerColor}; }
       .trip-marker.selected { background: #00A86B; }
-      .maplibregl-control-container { display: none; }
+      .maplibregl-ctrl-group {
+        border-radius: 8px;
+        box-shadow: 0 8px 18px rgba(15,23,42,0.16);
+        overflow: hidden;
+      }
     </style>
   </head>
   <body>
@@ -358,6 +366,8 @@ function buildGalliHtml({
           map.dragRotate.disable();
           map.keyboard.disable();
           map.touchZoomRotate.disableRotation();
+        } else {
+          map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-right');
         }
 
         map.on('load', () => {
@@ -373,14 +383,14 @@ function buildGalliHtml({
             new maplibregl.Marker({ element: createMarkerEl('selected', 'P') }).setLngLat([selected[1], selected[0]]).addTo(map);
           }
 
-          if (responders.length > 0) {
+          if (responders.length > 0 && roadRoute.length > 1) {
             map.addSource('trip-route', {
               type: 'geojson',
               data: {
                 type: 'Feature',
                 geometry: {
                   type: 'LineString',
-                  coordinates: roadRoute.length > 1 ? roadRoute : [responders[0], user]
+                  coordinates: roadRoute
                 },
                 properties: {}
               }
@@ -411,6 +421,13 @@ function buildGalliHtml({
             const bounds = new maplibregl.LngLatBounds(user, user);
             responders.forEach((point) => bounds.extend(point));
             roadRoute.forEach((point) => bounds.extend(point));
+            map.fitBounds(bounds, {
+              padding: { top: 82, bottom: 120, left: 54, right: 54 },
+              maxZoom: ${fitMaxZoom}
+            });
+          } else if (responders.length > 0) {
+            const bounds = new maplibregl.LngLatBounds(user, user);
+            responders.forEach((point) => bounds.extend(point));
             map.fitBounds(bounds, {
               padding: { top: 82, bottom: 120, left: 54, right: 54 },
               maxZoom: ${fitMaxZoom}

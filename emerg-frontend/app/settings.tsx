@@ -2,20 +2,18 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { Href, useFocusEffect, useNavigation, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
   Alert,
   BackHandler,
   ScrollView,
   StyleSheet,
   Switch,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AppBottomNav } from '@/components/app-bottom-nav';
-import { getCurrentUser, logoutUser, updateMyProfile } from '@/src/lib/auth';
+import { getCurrentUser, logoutUser } from '@/src/lib/auth';
 import { useAppPreferences } from '@/src/lib/app-preferences';
 
 const RED = '#E63946';
@@ -44,7 +42,7 @@ function SettingRow({ icon, label, value, onValueChange, onPress }: SettingRowPr
       disabled={!onPress}
     >
       <View style={styles.settingLabelWrap}>
-        <View style={styles.rowIconWrap}>
+        <View style={[styles.rowIconWrap, darkMode && styles.rowIconWrapDark]}>
           <Ionicons name={icon} size={18} color={RED} />
         </View>
         <Text style={[styles.settingLabel, darkMode && styles.textDark]}>{label}</Text>
@@ -75,13 +73,9 @@ export function SettingsContent({ bottomSpacer = 96 }: SettingsContentProps) {
   const currentUser = getCurrentUser();
   const { darkMode, language, setDarkMode, setLanguage, t } = useAppPreferences();
   const [notifications, setNotifications] = useState(true);
-  const [isEditingName, setIsEditingName] = useState(false);
-  const [isSavingName, setIsSavingName] = useState(false);
 
-  const [savedName, setSavedName] = useState(currentUser?.name || 'User');
-  const displayName = savedName;
+  const displayName = currentUser?.name || 'User';
   const displayEmail = currentUser?.email || 'teacher@heraldcollege.np';
-  const [draftName, setDraftName] = useState(displayName);
 
   const confirmLogout = useCallback(() => {
     Alert.alert(t('logoutConfirmTitle'), t('logoutConfirmMessage'), [
@@ -130,27 +124,6 @@ export function SettingsContent({ bottomSpacer = 96 }: SettingsContentProps) {
     router.push(changePasswordRoute);
   };
 
-  const handleSaveName = async () => {
-    const nextName = draftName.trim();
-
-    if (!nextName) {
-      return;
-    }
-
-    try {
-      setIsSavingName(true);
-      const user = await updateMyProfile({ name: nextName });
-      setSavedName(user.name);
-      setDraftName(user.name);
-      setIsEditingName(false);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unable to update your name right now.';
-      Alert.alert('Name update failed', message);
-    } finally {
-      setIsSavingName(false);
-    }
-  };
-
   return (
       <ScrollView contentContainerStyle={[styles.scrollContent, darkMode && styles.scrollContentDark]} showsVerticalScrollIndicator={false}>
         <View style={[styles.profileSection, darkMode && styles.profileSectionDark]}>
@@ -167,32 +140,14 @@ export function SettingsContent({ bottomSpacer = 96 }: SettingsContentProps) {
 
         <View style={[styles.settingsCard, darkMode && styles.cardDark]}>
           <Text style={[styles.sectionTitle, darkMode && styles.textDark]}>{t('personalInfo')}</Text>
-          <SettingRow
-            icon="person-outline"
-            label={t('editName')}
-            onPress={() => setIsEditingName((current) => !current)}
-          />
-
-          {isEditingName && (
-            <View style={styles.editNamePanel}>
-              <Text style={[styles.inputLabel, darkMode && styles.mutedTextDark]}>{t('fullName')}</Text>
-              <TextInput
-                style={[styles.nameInput, darkMode && styles.nameInputDark]}
-                value={draftName}
-                onChangeText={setDraftName}
-                placeholder={t('fullName')}
-                placeholderTextColor={darkMode ? '#9CA3AF' : '#A0AEC0'}
-              />
-              <View style={styles.editActions}>
-                <TouchableOpacity style={styles.cancelButton} onPress={() => setIsEditingName(false)} disabled={isSavingName}>
-                  <Text style={styles.cancelButtonText}>{t('cancel')}</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={[styles.saveNameButton, isSavingName && styles.buttonDisabled]} onPress={handleSaveName} disabled={isSavingName}>
-                  {isSavingName ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.saveNameText}>{t('saveName')}</Text>}
-                </TouchableOpacity>
+          <View style={styles.settingRow}>
+            <View style={styles.settingLabelWrap}>
+              <View style={[styles.rowIconWrap, darkMode && styles.rowIconWrapDark]}>
+                <Ionicons name="person-outline" size={18} color={RED} />
               </View>
+              <Text style={[styles.settingLabel, darkMode && styles.textDark]}>{displayName}</Text>
             </View>
-          )}
+          </View>
 
           <View style={styles.sectionGap} />
 
@@ -215,12 +170,12 @@ export function SettingsContent({ bottomSpacer = 96 }: SettingsContentProps) {
           <Text style={[styles.sectionTitle, darkMode && styles.textDark]}>{t('language')}</Text>
           <View style={styles.settingRow}>
             <View style={styles.settingLabelWrap}>
-              <View style={styles.rowIconWrap}>
+              <View style={[styles.rowIconWrap, darkMode && styles.rowIconWrapDark]}>
                 <MaterialCommunityIcons name="translate" size={18} color={RED} />
               </View>
               <Text style={[styles.settingLabel, darkMode && styles.textDark]}>{language === 'ne' ? t('nepali') : t('english')}</Text>
             </View>
-            <View style={styles.languageToggle}>
+            <View style={[styles.languageToggle, darkMode && styles.languageToggleDark]}>
               <TouchableOpacity
                 style={[styles.languageOption, language === 'en' && styles.languageOptionActive]}
                 onPress={() => setLanguage('en')}>
@@ -396,77 +351,23 @@ const styles = StyleSheet.create({
     marginRight: 8,
     width: 28,
   },
+  rowIconWrapDark: {
+    backgroundColor: '#1A0D10',
+  },
   settingLabel: {
     color: '#111827',
     flexShrink: 1,
     fontSize: 13,
     fontWeight: '500',
   },
-  editNamePanel: {
-    marginTop: 12,
-  },
-  inputLabel: {
-    color: '#4B5563',
-    fontSize: 12,
-    fontWeight: '700',
-    marginBottom: 6,
-  },
-  nameInput: {
-    backgroundColor: '#F7FAFC',
-    borderColor: BORDER,
-    borderRadius: 8,
-    borderWidth: 1,
-    color: '#111827',
-    fontSize: 15,
-    minHeight: 46,
-    paddingHorizontal: 12,
-  },
-  nameInputDark: {
-    backgroundColor: '#050505',
-    borderColor: '#2A2A2A',
-    color: '#F9FAFB',
-  },
-  editActions: {
-    flexDirection: 'row',
-    gap: 10,
-    justifyContent: 'flex-end',
-    marginTop: 10,
-  },
-  cancelButton: {
-    alignItems: 'center',
-    borderColor: BORDER,
-    borderRadius: 8,
-    borderWidth: 1,
-    justifyContent: 'center',
-    minHeight: 40,
-    paddingHorizontal: 14,
-  },
-  cancelButtonText: {
-    color: '#4B5563',
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  saveNameButton: {
-    alignItems: 'center',
-    backgroundColor: RED,
-    borderRadius: 8,
-    justifyContent: 'center',
-    minHeight: 40,
-    paddingHorizontal: 16,
-  },
-  buttonDisabled: {
-    opacity: 0.7,
-  },
-  saveNameText: {
-    color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '800',
-  },
   languageToggle: {
     backgroundColor: '#F3F4F6',
     borderRadius: 8,
     flexDirection: 'row',
     padding: 3,
+  },
+  languageToggleDark: {
+    backgroundColor: '#050505',
   },
   languageOption: {
     borderRadius: 7,

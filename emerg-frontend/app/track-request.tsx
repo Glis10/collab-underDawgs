@@ -1,7 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Image,
+  Linking,
+  PanResponder,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -19,14 +22,15 @@ import {
   EmergencyTrackingDetails,
   getEmergencyRequestDetails,
   getEmergencyRequests,
+  getOptimalRoute,
   updateMyLocation,
 } from '@/src/lib/auth';
 import { getOptionalCurrentEmergencyLocation } from '@/src/lib/location';
+import { extractRouteCoordinates } from '@/src/lib/routes';
 
 const RED = '#E63946';
 const NAVY = '#1A365D';
 const GREEN = '#00A86B';
-const BLUE = '#3182CE';
 const MUTED = '#718096';
 const FAINT = '#A0AEC0';
 const BORDER = '#E2E8F0';
@@ -56,7 +60,9 @@ export function TrackRequestContent({ bottomSpacer = 96, onGoHome }: TrackReques
   const [trackingDetails, setTrackingDetails] = useState<EmergencyTrackingDetails | null>(null);
   const [trackingDetailsList, setTrackingDetailsList] = useState<EmergencyTrackingDetails[]>([]);
   const [userLocation, setUserLocation] = useState<EmergencyLocation>(fallbackUserLocation);
+  const [roadRoute, setRoadRoute] = useState<EmergencyLocation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSheetExpanded, setIsSheetExpanded] = useState(true);
 
   useEffect(() => {
     let isMounted = true;
@@ -110,7 +116,7 @@ export function TrackRequestContent({ bottomSpacer = 96, onGoHome }: TrackReques
     };
 
     refreshTracking();
-    const intervalId = setInterval(refreshTracking, 10000);
+    const intervalId = setInterval(refreshTracking, 5000);
 
     return () => {
       isMounted = false;
@@ -123,27 +129,100 @@ export function TrackRequestContent({ bottomSpacer = 96, onGoHome }: TrackReques
     .map((details) => ({
       location: details.responderDetails?.currentLocation,
       label: details.responderDetails?.name || getServiceLabel(details.serviceType || details.emergencyType),
+      phoneNumber: details.responderDetails?.phoneNumber || '',
       service: getServiceLabel(details.serviceType || details.emergencyType),
     }))
-    .filter((item): item is { location: EmergencyLocation; label: string; service: string } => Boolean(item.location?.latitude && item.location.longitude));
+    .filter((item): item is { location: EmergencyLocation; label: string; phoneNumber: string; service: string } => Boolean(item.location?.latitude && item.location.longitude));
   const responderLocation = responderLocations[0]?.location || trackingDetails?.responderDetails?.currentLocation || null;
   const responderName = trackingDetails?.responderDetails?.name || 'Assigned admin';
+  const responderPhoneNumber = responderLocations[0]?.phoneNumber || trackingDetails?.responderDetails?.phoneNumber || '';
   const requestStatus = trackingDetails?.requestStatus || activeRequest?.requestStatus || activeRequest?.status || 'pending';
   const isAccepted = requestStatus === 'approved' || requestStatus === 'assigned' || requestStatus === 'in_progress';
   const routeDistance = responderLocation ? calculateDistanceKm(responderLocation, userLocation) : null;
   const etaMinutes = routeDistance ? Math.max(2, Math.round((routeDistance / 24) * 60)) : null;
+  const mapHeight = isSheetExpanded ? 420 : 640;
+  const sheetPanResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (_, gesture) => Math.abs(gesture.dy) > 12,
+        onPanResponderRelease: (_, gesture) => {
+          if (gesture.dy > 20) {
+            setIsSheetExpanded(false);
+          }
+
+          if (gesture.dy < -20) {
+            setIsSheetExpanded(true);
+          }
+        },
+      }),
+    []
+  );
+
+  const handleCallResponder = async () => {
+    const phoneNumber = responderPhoneNumber.replace(/[^\d+]/g, '');
+
+    if (!phoneNumber) {
+      Alert.alert(t('responderUnavailable'), t('responderPhoneUnavailable'));
+      return;
+    }
+
+    const url = `tel:${phoneNumber}`;
+    const canOpen = await Linking.canOpenURL(url);
+
+    if (!canOpen) {
+      Alert.alert(t('dialerUnavailable'), `${t('callProvider')}: ${phoneNumber}`);
+      return;
+    }
+
+    Linking.openURL(url);
+  };
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadRoadRoute = async () => {
+      if (!isAccepted || !responderLocation) {
+        setRoadRoute([]);
+        return;
+      }
+
+      try {
+        const route = await getOptimalRoute({
+          srcLat: responderLocation.latitude,
+          srcLng: responderLocation.longitude,
+          dstLat: userLocation.latitude,
+          dstLng: userLocation.longitude,
+          mode: 'DRIVING',
+        });
+
+        if (isMounted) {
+          setRoadRoute(extractRouteCoordinates(route));
+        }
+      } catch {
+        if (isMounted) {
+          setRoadRoute([]);
+        }
+      }
+    };
+
+    loadRoadRoute();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isAccepted, responderLocation, userLocation.latitude, userLocation.longitude]);
 
   const providerDetails: ProviderDetail[] = [
-    { label: 'Responders', value: responderLocations.length > 0 ? `${responderLocations.length}/${isSosRequest(activeRequests) ? 3 : 1}` : 'Waiting', icon: 'account-hard-hat' },
-    { label: 'ETA', value: etaMinutes ? `${etaMinutes} min` : '--', icon: 'clock-fast' },
-    { label: 'Distance', value: routeDistance ? `${routeDistance.toFixed(1)} km` : '--', icon: 'map-marker-distance' },
+    { label: t('responders'), value: responderLocations.length > 0 ? `${responderLocations.length}/${isSosRequest(activeRequests) ? 3 : 1}` : t('waiting'), icon: 'account-hard-hat' },
+    { label: t('eta'), value: etaMinutes ? `${etaMinutes} min` : '--', icon: 'clock-fast' },
+    { label: t('distance'), value: routeDistance ? `${routeDistance.toFixed(1)} km` : '--', icon: 'map-marker-distance' },
   ];
 
   if (isLoading) {
     return (
       <View style={styles.centerState}>
         <ActivityIndicator color={RED} />
-        <Text style={styles.centerStateText}>Checking your service requests...</Text>
+        <Text style={styles.centerStateText}>{t('checkingRequests')}</Text>
       </View>
     );
   }
@@ -154,8 +233,8 @@ export function TrackRequestContent({ bottomSpacer = 96, onGoHome }: TrackReques
         <View style={[styles.emptyIcon, darkMode && styles.cardDark]}>
           <MaterialCommunityIcons name="map-search-outline" size={34} color={RED} />
         </View>
-        <Text style={[styles.emptyTitle, darkMode && styles.textDark]}>No service requested</Text>
-        <Text style={styles.emptySubtitle}>Request ambulance, police, or fire help first, then live tracking will appear here.</Text>
+        <Text style={[styles.emptyTitle, darkMode && styles.textDark]}>{t('noServiceRequested')}</Text>
+        <Text style={styles.emptySubtitle}>{t('requestHelpFirst')}</Text>
         <TouchableOpacity style={styles.primaryWideAction} activeOpacity={0.8} onPress={onGoHome ?? (() => router.replace(dashboardRoute))}>
           <Ionicons name="home-outline" size={18} color="#FFFFFF" />
           <Text style={styles.primaryActionText}>{t('home')}</Text>
@@ -165,8 +244,8 @@ export function TrackRequestContent({ bottomSpacer = 96, onGoHome }: TrackReques
   }
 
   return (
-      <View style={styles.mapFirstContent}>
-        <View style={styles.mapCanvas}>
+      <View style={[styles.mapFirstContent, darkMode && styles.mapFirstContentDark]}>
+        <View style={[styles.mapCanvas, { height: mapHeight }]}>
           <LeafletMap
             userLocation={userLocation}
             responderLocation={responderLocation}
@@ -174,86 +253,85 @@ export function TrackRequestContent({ bottomSpacer = 96, onGoHome }: TrackReques
               location: item.location,
               label: `${item.service}: ${item.label}`,
             }))}
+            routeCoordinates={roadRoute}
             userLabel="Your location"
             responderLabel={responderName}
-            height={420}
+            height={mapHeight}
             fitMaxZoom={13}
             fallback={
-              <View style={styles.mapGridLarge}>
-                {responderLocation && <View style={styles.routeLine} />}
+              <View style={[styles.mapGridLarge, { height: mapHeight }]}>
                 <View style={[styles.mapMarker, styles.userMarker]}>
                   <Ionicons name="person" size={18} color="#FFFFFF" />
                 </View>
                 {responderLocation && (
-                  <>
-                    <View style={[styles.mapMarker, styles.providerMarker]}>
-                      <MaterialCommunityIcons name="account-hard-hat" size={19} color="#FFFFFF" />
-                    </View>
-                    <View style={styles.routeDotOne} />
-                    <View style={styles.routeDotTwo} />
-                  </>
+                  <View style={[styles.mapMarker, styles.providerMarker]}>
+                    <MaterialCommunityIcons name="account-hard-hat" size={19} color="#FFFFFF" />
+                  </View>
                 )}
               </View>
             }
           />
           <View style={styles.mapTopBar}>
             <Image source={require('../assets/logo.png')} style={styles.logoSmall} resizeMode="contain" />
-            <TouchableOpacity style={[styles.roundMapButton, darkMode && styles.cardDark]} activeOpacity={0.75}>
+            <TouchableOpacity style={[styles.roundMapButton, darkMode && styles.cardDark]} activeOpacity={0.75} onPress={handleCallResponder}>
               <Ionicons name="call-outline" size={22} color={RED} />
             </TouchableOpacity>
           </View>
-          <View style={styles.mapStatusPill}>
+          <View style={[styles.mapStatusPill, darkMode && styles.mapFloatingDark]}>
             <View style={styles.liveDot} />
-            <Text style={styles.mapStatusText}>{isAccepted ? 'Live trip tracking' : 'Request pending'}</Text>
+            <Text style={[styles.mapStatusText, darkMode && styles.textDark]}>{isAccepted ? t('liveTracking') : t('pending')}</Text>
           </View>
         </View>
 
         <View style={[styles.rideSheet, darkMode && styles.cardDark]}>
-          <View style={styles.sheetHandle} />
+          <TouchableOpacity style={styles.sheetHandleButton} activeOpacity={0.75} onPress={() => setIsSheetExpanded((current) => !current)} {...sheetPanResponder.panHandlers}>
+            <View style={styles.sheetHandle} />
+            <Ionicons name={isSheetExpanded ? 'chevron-down' : 'chevron-up'} size={18} color={darkMode ? '#F9FAFB' : NAVY} />
+          </TouchableOpacity>
           <View style={styles.statusTopRow}>
             <View style={styles.statusIconWrap}>
               <MaterialCommunityIcons name={isAccepted ? 'map-marker-path' : 'timer-sand'} size={32} color="#FFFFFF" />
             </View>
             <View style={styles.statusTextWrap}>
-              <Text style={[styles.sheetEyebrow, darkMode && styles.mutedTextDark]}>{isAccepted ? t('liveTracking') : 'Request submitted'}</Text>
-              <Text style={[styles.sheetTitle, darkMode && styles.textDark]}>{isAccepted ? t('providerOnWay') : 'Waiting for acceptance'}</Text>
+              <Text style={[styles.sheetEyebrow, darkMode && styles.mutedTextDark]}>{isAccepted ? t('liveTracking') : t('requestSubmitted')}</Text>
+              <Text style={[styles.sheetTitle, darkMode && styles.textDark]}>{isAccepted ? responderName : t('waitingAcceptance')}</Text>
               <Text style={styles.sheetSubtitle}>
-                {isAccepted ? `${responderLocations.length || 1} responder${(responderLocations.length || 1) === 1 ? '' : 's'} can now track your live GPS location.` : 'Admins can see your request. Live responder tracking starts after one accepts it.'}
+                {isAccepted ? `${responderName}: ${t('providerOnWay')}.` : t('adminsCanSeeRequest')}
               </Text>
             </View>
           </View>
 
-          {isSosRequest(activeRequests) && (
+          {isSheetExpanded && isSosRequest(activeRequests) && (
             <View style={styles.criticalStrip}>
               <MaterialCommunityIcons name="alarm-light" size={18} color="#FFFFFF" />
-              <Text style={styles.criticalStripText}>Critical SOS: tracking ambulance, police, and fire response</Text>
+              <Text style={styles.criticalStripText}>{t('criticalSosTracking')}</Text>
             </View>
           )}
 
-          <View style={styles.tripStatsRow}>
+          {isSheetExpanded && <View style={styles.tripStatsRow}>
             {providerDetails.map((item) => (
-              <View key={item.label} style={styles.tripStat}>
+              <View key={item.label} style={[styles.tripStat, darkMode && styles.tripStatDark]}>
                 <MaterialCommunityIcons name={item.icon} size={20} color={RED} />
                 <Text style={styles.tripStatLabel}>{item.label}</Text>
                 <Text style={[styles.tripStatValue, darkMode && styles.textDark]}>{item.value}</Text>
               </View>
             ))}
-          </View>
+          </View>}
 
-          <View style={styles.mapInfoInline}>
+          {isSheetExpanded && <View style={[styles.mapInfoInline, darkMode && styles.infoInlineDark]}>
             <Ionicons name="location-outline" size={18} color={RED} />
             <View style={styles.mapInfoTextWrap}>
-              <Text style={[styles.mapTitle, darkMode && styles.textDark]}>{isAccepted ? t('routeTitle') : 'Shared request location'}</Text>
+              <Text style={[styles.mapTitle, darkMode && styles.textDark]}>{isAccepted ? t('routeTitle') : t('sharedRequestLocation')}</Text>
               <Text style={styles.mapText}>{userLocation.latitude}, {userLocation.longitude}</Text>
             </View>
-          </View>
+          </View>}
 
-          {responderLocations.length > 0 && (
+          {isSheetExpanded && responderLocations.length > 0 && (
             <View style={styles.responderList}>
               {responderLocations.map((item) => (
-                <View key={`${item.service}-${item.label}`} style={styles.responderChip}>
+                <View key={`${item.service}-${item.label}`} style={[styles.responderChip, darkMode && styles.responderChipDark]}>
                   <MaterialCommunityIcons name="account-hard-hat" size={16} color={RED} />
-                  <Text style={styles.responderChipText}>{item.service}</Text>
+                  <Text style={styles.responderChipText}>{item.service}: {item.label}</Text>
                 </View>
               ))}
             </View>
@@ -340,6 +418,9 @@ const styles = StyleSheet.create({
   },
   mapFirstContent: {
     flex: 1,
+  },
+  mapFirstContentDark: {
+    backgroundColor: '#050505',
   },
   centerState: {
     alignItems: 'center',
@@ -432,6 +513,11 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     marginLeft: 7,
   },
+  mapFloatingDark: {
+    backgroundColor: 'rgba(18,18,18,0.94)',
+    borderColor: '#2A2A2A',
+    borderWidth: 1,
+  },
   rideSheet: {
     backgroundColor: '#FFFFFF',
     borderColor: BORDER,
@@ -448,8 +534,13 @@ const styles = StyleSheet.create({
     backgroundColor: BORDER,
     borderRadius: 2,
     height: 4,
-    marginBottom: 14,
     width: 44,
+  },
+  sheetHandleButton: {
+    alignItems: 'center',
+    gap: 4,
+    marginBottom: 10,
+    paddingVertical: 2,
   },
   sheetEyebrow: {
     color: MUTED,
@@ -501,6 +592,10 @@ const styles = StyleSheet.create({
     minHeight: 78,
     padding: 9,
   },
+  tripStatDark: {
+    backgroundColor: '#050505',
+    borderColor: '#2A2A2A',
+  },
   tripStatLabel: {
     color: FAINT,
     fontSize: 11,
@@ -522,6 +617,9 @@ const styles = StyleSheet.create({
     marginTop: 12,
     padding: 10,
   },
+  infoInlineDark: {
+    backgroundColor: '#1A0D10',
+  },
   mapInfoTextWrap: {
     flex: 1,
   },
@@ -541,6 +639,10 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingHorizontal: 10,
     paddingVertical: 8,
+  },
+  responderChipDark: {
+    backgroundColor: '#1A0D10',
+    borderColor: '#4A1F26',
   },
   responderChipText: {
     color: RED,
@@ -699,17 +801,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '900',
   },
-  routeLine: {
-    backgroundColor: BLUE,
-    borderRadius: 3,
-    height: 6,
-    left: 68,
-    opacity: 0.65,
-    position: 'absolute',
-    top: 94,
-    transform: [{ rotate: '-24deg' }],
-    width: 230,
-  },
   mapMarker: {
     alignItems: 'center',
     borderColor: '#FFFFFF',
@@ -729,24 +820,6 @@ const styles = StyleSheet.create({
     backgroundColor: RED,
     right: 44,
     top: 35,
-  },
-  routeDotOne: {
-    backgroundColor: BLUE,
-    borderRadius: 6,
-    height: 12,
-    left: 138,
-    position: 'absolute',
-    top: 111,
-    width: 12,
-  },
-  routeDotTwo: {
-    backgroundColor: BLUE,
-    borderRadius: 5,
-    height: 10,
-    position: 'absolute',
-    right: 122,
-    top: 73,
-    width: 10,
   },
   mapInfo: {
     padding: 14,
