@@ -109,7 +109,7 @@ export default function DashboardScreen() {
   const canCancelRequest = (request: EmergencyRequest) => {
     const status = getRequestStatus(request);
 
-    return status === 'pending' || status === 'approved' || status === 'assigned' || status === 'in_progress';
+    return status === 'pending';
   };
 
   const confirmCancelRequest = (request: EmergencyRequest) => {
@@ -150,6 +150,14 @@ export default function DashboardScreen() {
   };
 
   const getRequestStatus = (request: EmergencyRequest) => request.requestStatus || request.status || 'pending';
+
+  const formatStatusLabel = (status: string) => {
+    if (status === 'approved' || status === 'assigned' || status === 'in_progress') {
+      return 'on the way';
+    }
+
+    return status.replace(/_/g, ' ');
+  };
 
   const getStatusColor = (status: string) => {
     if (status === 'completed') {
@@ -324,7 +332,7 @@ export default function DashboardScreen() {
                 <Text style={styles.historyCardLocation}>{formatRequestLocation(request)}</Text>
               </View>
               <View style={[styles.badge, { backgroundColor: getStatusColor(status) }]}>
-                <Text style={styles.badgeText}>{status.replace(/_/g, ' ')}</Text>
+                <Text style={styles.badgeText}>{formatStatusLabel(status)}</Text>
               </View>
               {canCancelRequest(request) && (
                 <TouchableOpacity style={styles.cancelRequestButton} activeOpacity={0.8} onPress={() => confirmCancelRequest(request)}>

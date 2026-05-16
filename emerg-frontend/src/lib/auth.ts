@@ -84,6 +84,14 @@ export type EmergencyLocation = {
   longitude: string;
 };
 
+type OptimalRouteInput = {
+  srcLat: string;
+  srcLng: string;
+  dstLat: string;
+  dstLng: string;
+  mode?: 'DRIVING' | 'WALKING' | 'BICYCLING';
+};
+
 export type EmergencyRequest = {
   id: string;
   emergencyRequestId?: string;
@@ -292,6 +300,25 @@ export function updateCurrentUserName(name: string) {
   };
 }
 
+export async function updateMyProfile(input: Partial<Pick<AuthUser, 'name' | 'email' | 'phoneNumber' | 'primaryAddress'>>): Promise<AuthUser> {
+  const token = requireAuthToken('Please sign in again before updating your profile.');
+
+  const user = await apiRequest<AuthUser>('/auth/me/profile', {
+    method: 'PATCH',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(input),
+  });
+
+  currentUser = {
+    ...(currentUser || user),
+    ...user,
+  };
+
+  return currentUser;
+}
+
 export function logoutUser() {
   authToken = null;
   currentUser = null;
@@ -373,6 +400,24 @@ export async function updateMyLocation(location: EmergencyLocation): Promise<Aut
   }
 
   return user;
+}
+
+export async function getOptimalRoute(input: OptimalRouteInput): Promise<unknown> {
+  const token = requireAuthToken('Please sign in again before loading route directions.');
+  const params = new URLSearchParams({
+    srcLat: input.srcLat,
+    srcLng: input.srcLng,
+    dstLat: input.dstLat,
+    dstLng: input.dstLng,
+    mode: input.mode || 'DRIVING',
+  });
+
+  return apiRequest<unknown>(`/v1/maps/optimal-route?${params.toString()}`, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
 }
 
 export async function cancelEmergencyRequest(id: string): Promise<EmergencyRequest> {

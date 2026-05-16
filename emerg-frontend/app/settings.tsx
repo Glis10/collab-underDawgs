@@ -2,6 +2,7 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { Href, useFocusEffect, useNavigation, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   BackHandler,
   ScrollView,
@@ -14,7 +15,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AppBottomNav } from '@/components/app-bottom-nav';
-import { getCurrentUser, logoutUser, updateCurrentUserName } from '@/src/lib/auth';
+import { getCurrentUser, logoutUser, updateMyProfile } from '@/src/lib/auth';
 import { useAppPreferences } from '@/src/lib/app-preferences';
 
 const RED = '#E63946';
@@ -75,6 +76,7 @@ export function SettingsContent({ bottomSpacer = 96 }: SettingsContentProps) {
   const { darkMode, language, setDarkMode, setLanguage, t } = useAppPreferences();
   const [notifications, setNotifications] = useState(true);
   const [isEditingName, setIsEditingName] = useState(false);
+  const [isSavingName, setIsSavingName] = useState(false);
 
   const [savedName, setSavedName] = useState(currentUser?.name || 'User');
   const displayName = savedName;
@@ -128,16 +130,25 @@ export function SettingsContent({ bottomSpacer = 96 }: SettingsContentProps) {
     router.push(changePasswordRoute);
   };
 
-  const handleSaveName = () => {
+  const handleSaveName = async () => {
     const nextName = draftName.trim();
 
     if (!nextName) {
       return;
     }
 
-    updateCurrentUserName(nextName);
-    setSavedName(nextName);
-    setIsEditingName(false);
+    try {
+      setIsSavingName(true);
+      const user = await updateMyProfile({ name: nextName });
+      setSavedName(user.name);
+      setDraftName(user.name);
+      setIsEditingName(false);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to update your name right now.';
+      Alert.alert('Name update failed', message);
+    } finally {
+      setIsSavingName(false);
+    }
   };
 
   return (
@@ -173,11 +184,11 @@ export function SettingsContent({ bottomSpacer = 96 }: SettingsContentProps) {
                 placeholderTextColor={darkMode ? '#9CA3AF' : '#A0AEC0'}
               />
               <View style={styles.editActions}>
-                <TouchableOpacity style={styles.cancelButton} onPress={() => setIsEditingName(false)}>
+                <TouchableOpacity style={styles.cancelButton} onPress={() => setIsEditingName(false)} disabled={isSavingName}>
                   <Text style={styles.cancelButtonText}>{t('cancel')}</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.saveNameButton} onPress={handleSaveName}>
-                  <Text style={styles.saveNameText}>{t('saveName')}</Text>
+                <TouchableOpacity style={[styles.saveNameButton, isSavingName && styles.buttonDisabled]} onPress={handleSaveName} disabled={isSavingName}>
+                  {isSavingName ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.saveNameText}>{t('saveName')}</Text>}
                 </TouchableOpacity>
               </View>
             </View>
@@ -442,6 +453,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     minHeight: 40,
     paddingHorizontal: 16,
+  },
+  buttonDisabled: {
+    opacity: 0.7,
   },
   saveNameText: {
     color: '#FFFFFF',

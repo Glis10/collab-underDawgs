@@ -5,7 +5,6 @@ import {
   ActivityIndicator,
   Alert,
   Image,
-  Linking,
   Modal,
   ScrollView,
   StyleSheet,
@@ -13,6 +12,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -23,10 +23,11 @@ import {
   approveAdminEmergencyRequest,
   getAdminEmergencyRequests,
   getCurrentUser,
+  getOptimalRoute,
   logoutUser,
   rejectAdminEmergencyRequest,
   resolveAdminEmergencyRequest,
-  updateCurrentUserName,
+  updateMyProfile,
   updateMyLocation,
 } from '@/src/lib/auth';
 import { getOptionalCurrentEmergencyLocation } from '@/src/lib/location';
@@ -101,6 +102,7 @@ type DashboardEmergencyRequest = {
   requesterLocation?: { latitude: string; longitude: string } | null;
   responderLocation?: { latitude: string; longitude: string } | null;
   responderName?: string;
+  isCritical?: boolean;
   description: string;
   time: string;
   status: RequestStatus;
@@ -314,6 +316,7 @@ function toDashboardRequest(request: AdminEmergencyRequest): DashboardEmergencyR
     requesterLocation: request.requester?.currentLocation || request.coordinates || null,
     responderLocation: request.responderDetails?.currentLocation || null,
     responderName: request.responderDetails?.name,
+    isCritical: (request.description || '').toLowerCase().includes('sos'),
     description: request.description || 'No message provided.',
     time: formatRequestTime(request.tracking?.requestedAt || request.timestamp),
     status: mapRequestStatus(request.requestStatus),
@@ -324,6 +327,7 @@ function toDashboardRequest(request: AdminEmergencyRequest): DashboardEmergencyR
 
 export default function AdminDashboardScreen() {
   const router = useRouter();
+  const { height: viewportHeight } = useWindowDimensions();
   const currentUser = getCurrentUser();
   const { darkMode, language, setDarkMode, setLanguage } = useAppPreferences();
   const tr = (key: AdminTextKey) => text[language][key];
@@ -334,9 +338,11 @@ export default function AdminDashboardScreen() {
   const [selectedRequest, setSelectedRequest] = useState<DashboardEmergencyRequest | null>(null);
   const [notifications, setNotifications] = useState(true);
   const [isEditingName, setIsEditingName] = useState(false);
+  const [isSavingName, setIsSavingName] = useState(false);
   const [savedName, setSavedName] = useState(currentUser?.name || 'Admin');
   const [draftName, setDraftName] = useState(currentUser?.name || 'Admin');
   const [adminLocation, setAdminLocation] = useState(currentUser?.currentLocation || fallbackAdminLocation);
+  const [roadRoute, setRoadRoute] = useState<{ latitude: string; longitude: string }[]>([]);
   const displayEmail = currentUser?.email || 'admin@heraldcollege.np';
 
   const activeRequests = requests.filter((request) => request.status !== 'completed');
@@ -346,6 +352,44 @@ export default function AdminDashboardScreen() {
   const respondersOnline = responderStatus === 'unavailable' ? 0 : 1;
 
   const currentPageTitle = activeTab === 'Resolved' ? tr('resolved') : tr(activeTab.toLowerCase() as AdminTextKey);
+  const mapTargetLocation = assignedRequest?.requesterLocation || assignedRequest?.coordinates || null;
+  const mapDistance = mapTargetLocation ? calculateDistanceKm(adminLocation, mapTargetLocation) : null;
+  const mapEtaMinutes = mapDistance ? Math.max(2, Math.round((mapDistance / 24) * 60)) : null;
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadRoadRoute = async () => {
+      if (!assignedRequest || !mapTargetLocation) {
+        setRoadRoute([]);
+        return;
+      }
+
+      try {
+        const route = await getOptimalRoute({
+          srcLat: adminLocation.latitude,
+          srcLng: adminLocation.longitude,
+          dstLat: mapTargetLocation.latitude,
+          dstLng: mapTargetLocation.longitude,
+          mode: 'DRIVING',
+        });
+
+        if (isMounted) {
+          setRoadRoute(extractRouteCoordinates(route));
+        }
+      } catch {
+        if (isMounted) {
+          setRoadRoute([]);
+        }
+      }
+    };
+
+    loadRoadRoute();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [adminLocation.latitude, adminLocation.longitude, assignedRequest, mapTargetLocation]);
 
   const loadAdminRequests = useCallback(async (silent = false) => {
     if (responderStatus === 'unavailable') {
@@ -464,6 +508,7 @@ export default function AdminDashboardScreen() {
       await loadAdminRequests();
       setResponderStatus('busy');
       setSelectedRequest(null);
+      setActiveTab('Map');
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to accept this request.';
       Alert.alert('Accept failed', message);
@@ -506,16 +551,25 @@ export default function AdminDashboardScreen() {
     ]);
   };
 
-  const handleSaveName = () => {
+  const handleSaveName = async () => {
     const nextName = draftName.trim();
 
     if (!nextName) {
       return;
     }
 
-    updateCurrentUserName(nextName);
-    setSavedName(nextName);
-    setIsEditingName(false);
+    try {
+      setIsSavingName(true);
+      const user = await updateMyProfile({ name: nextName });
+      setSavedName(user.name);
+      setDraftName(user.name);
+      setIsEditingName(false);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to update your name right now.';
+      Alert.alert('Name update failed', message);
+    } finally {
+      setIsSavingName(false);
+    }
   };
 
   const renderRequestCard = (request: DashboardEmergencyRequest) => (
@@ -525,7 +579,14 @@ export default function AdminDashboardScreen() {
       </View>
       <View style={styles.requestDetails}>
         <View style={styles.requestTopRow}>
-          <Text style={[styles.requestType, darkMode && styles.textDark]}>{request.type}</Text>
+          <View style={styles.requestTitleWrap}>
+            <Text style={[styles.requestType, darkMode && styles.textDark]}>{request.type}</Text>
+            {request.isCritical && (
+              <View style={styles.criticalBadge}>
+                <Text style={styles.criticalBadgeText}>CRITICAL</Text>
+              </View>
+            )}
+          </View>
           <Text style={styles.requestTime}>{request.time}</Text>
         </View>
         <Text style={[styles.requester, darkMode && styles.mutedTextDark]}>{request.requester}</Text>
@@ -543,7 +604,7 @@ export default function AdminDashboardScreen() {
         {request.status === 'assigned' ? (
           <View style={styles.requestActions}>
             <View style={styles.assignedBadge}>
-              <Text style={styles.statusText}>{tr('assigned')}</Text>
+              <Text style={styles.statusText}>On the way</Text>
             </View>
             <TouchableOpacity style={styles.completeButton} activeOpacity={0.8} onPress={() => handleCompleteRequest(request.id)}>
               <Text style={styles.completeButtonText}>{tr('completed')}</Text>
@@ -588,13 +649,23 @@ export default function AdminDashboardScreen() {
             <Text style={[styles.detailsMessage, darkMode && styles.textDark]}>{selectedRequest?.description}</Text>
           </ScrollView>
 
-          {selectedRequest && selectedRequest.status !== 'completed' && (
+          {selectedRequest && selectedRequest.status === 'incoming' && (
             <View style={styles.detailsActions}>
               <TouchableOpacity style={styles.acceptButton} activeOpacity={0.8} onPress={() => handleAcceptRequest(selectedRequest.id)}>
                 <Text style={styles.actionButtonText}>{tr('accept')}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.busyButton} activeOpacity={0.8} onPress={() => handleDeclineRequest(selectedRequest.id)}>
                 <Text style={styles.busyButtonText}>{tr('decline')}</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+          {selectedRequest && selectedRequest.status === 'assigned' && (
+            <View style={styles.detailsActions}>
+              <View style={[styles.assignedBadge, styles.detailsStatusBadge]}>
+                <Text style={styles.statusText}>Accepted</Text>
+              </View>
+              <TouchableOpacity style={styles.completeButton} activeOpacity={0.8} onPress={() => handleCompleteRequest(selectedRequest.id)}>
+                <Text style={styles.completeButtonText}>{tr('completed')}</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -711,27 +782,6 @@ export default function AdminDashboardScreen() {
     </>
   );
 
-  const mapTargetLocation = assignedRequest?.requesterLocation || assignedRequest?.coordinates || null;
-  const mapDistance = mapTargetLocation ? calculateDistanceKm(adminLocation, mapTargetLocation) : null;
-  const mapEtaMinutes = mapDistance ? Math.max(2, Math.round((mapDistance / 24) * 60)) : null;
-
-  const openAdminMap = async () => {
-    if (!mapTargetLocation) {
-      Alert.alert('No active route', 'Accept a request first to open route directions.');
-      return;
-    }
-
-    const url = `https://www.openstreetmap.org/directions?engine=fossgis_osrm_car&route=${adminLocation.latitude}%2C${adminLocation.longitude}%3B${mapTargetLocation.latitude}%2C${mapTargetLocation.longitude}`;
-    const canOpen = await Linking.canOpenURL(url);
-
-    if (!canOpen) {
-      Alert.alert('Maps unavailable', 'OpenStreetMap could not be opened on this device.');
-      return;
-    }
-
-    await Linking.openURL(url);
-  };
-
   const renderMap = () => (
     <>
       <View style={styles.statusPanel}>
@@ -745,15 +795,19 @@ export default function AdminDashboardScreen() {
         </View>
       </View>
 
-      <View style={[styles.mapPanel, darkMode && styles.cardDark]}>
-        <TouchableOpacity activeOpacity={0.9} onPress={openAdminMap}>
+      <View style={[styles.adminMapShell, darkMode && styles.cardDark]}>
+        <View style={styles.adminMapCanvas}>
           <LeafletMap
             userLocation={mapTargetLocation || adminLocation}
             responderLocation={mapTargetLocation ? adminLocation : null}
+            routeCoordinates={roadRoute}
             userLabel={assignedRequest?.requester || 'Requester'}
             responderLabel={savedName}
+            height={360}
+            fitMaxZoom={13}
+            zoomEnabled={false}
             fallback={
-              <View style={styles.mapGrid}>
+              <View style={styles.adminMapGrid}>
               {mapTargetLocation && <View style={styles.routeLine} />}
               <View style={[styles.mapMarker, styles.userMarker]}>
                 <Ionicons name="person" size={18} color="#FFFFFF" />
@@ -770,14 +824,18 @@ export default function AdminDashboardScreen() {
               </View>
             }
           />
-          <View style={styles.mapOpenBadge}>
-            <Ionicons name="navigate" size={14} color="#FFFFFF" />
-            <Text style={styles.mapOpenText}>OpenStreetMap</Text>
+          <View style={styles.adminMapOverlay}>
+            <View style={styles.liveBadgeLight}>
+              <View style={styles.availabilityDot} />
+              <Text style={styles.liveBadgeLightText}>{assignedRequest ? 'Live route' : 'Standby map'}</Text>
+            </View>
           </View>
-        </TouchableOpacity>
-        <View style={styles.mapInfo}>
-          <Text style={[styles.mapTitle, darkMode && styles.textDark]}>{tr('routeTitle')}</Text>
-          <Text style={styles.mapText}>{assignedRequest?.location || `${adminLocation.latitude}, ${adminLocation.longitude}`}</Text>
+        </View>
+        <View style={styles.mapInfoRow}>
+          <View style={styles.mapInfoTextWrap}>
+            <Text style={[styles.mapTitle, darkMode && styles.textDark]}>{tr('routeTitle')}</Text>
+            <Text style={styles.mapText}>{assignedRequest?.location || `${adminLocation.latitude}, ${adminLocation.longitude}`}</Text>
+          </View>
         </View>
       </View>
 
@@ -825,11 +883,11 @@ export default function AdminDashboardScreen() {
               placeholderTextColor={darkMode ? '#858B98' : '#A0AEC0'}
             />
             <View style={styles.editActions}>
-              <TouchableOpacity style={styles.cancelButton} onPress={() => setIsEditingName(false)}>
+              <TouchableOpacity style={styles.cancelButton} onPress={() => setIsEditingName(false)} disabled={isSavingName}>
                 <Text style={styles.cancelButtonText}>{tr('cancel')}</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.saveButton} onPress={handleSaveName}>
-                <Text style={styles.saveButtonText}>{tr('saveName')}</Text>
+              <TouchableOpacity style={[styles.saveButton, isSavingName && styles.buttonDisabled]} onPress={handleSaveName} disabled={isSavingName}>
+                {isSavingName ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.saveButtonText}>{tr('saveName')}</Text>}
               </TouchableOpacity>
             </View>
           </View>
@@ -886,6 +944,92 @@ export default function AdminDashboardScreen() {
 
     return renderOverview();
   };
+
+  if (activeTab === 'Map') {
+    const responderLabel = assignedRequest?.responderName || savedName;
+    const fullMapHeight = Math.max(560, Math.round(viewportHeight));
+
+    return (
+      <SafeAreaView style={[styles.container, darkMode && styles.containerDark]} edges={['top', 'left', 'right']}>
+        <View style={styles.fullMapScreen}>
+          <LeafletMap
+            userLocation={mapTargetLocation || adminLocation}
+            responderLocation={mapTargetLocation ? adminLocation : null}
+            routeCoordinates={roadRoute}
+            userLabel={assignedRequest?.requester || 'Emergency location'}
+            userMarkerColor={RED}
+            userMarkerText="!"
+            responderLabel={responderLabel}
+            responderMarkerColor={GREEN}
+            responderMarkerText="A"
+            height={fullMapHeight}
+            fitMaxZoom={15}
+            zoomEnabled={false}
+            fallback={
+              <View style={styles.fullMapFallback}>
+                {mapTargetLocation && <View style={styles.fullMapRouteLine} />}
+                <View style={[styles.mapMarker, styles.fullMapUserMarker]}>
+                  <MaterialCommunityIcons name={assignedRequest?.icon || 'alert'} size={18} color="#FFFFFF" />
+                </View>
+                {mapTargetLocation && (
+                  <View style={[styles.mapMarker, styles.fullMapResponderMarker]}>
+                    <MaterialCommunityIcons name="car-emergency" size={18} color="#FFFFFF" />
+                  </View>
+                )}
+              </View>
+            }
+          />
+
+          <View style={[styles.fullMapTopBar, darkMode && styles.cardDark]}>
+            <TouchableOpacity style={styles.fullMapBackButton} onPress={() => setActiveTab('Alerts')}>
+              <Ionicons name="chevron-back" size={24} color={darkMode ? '#FFFFFF' : NAVY} />
+            </TouchableOpacity>
+            <View style={styles.fullMapTitleWrap}>
+              <Text style={[styles.fullMapTitle, darkMode && styles.textDark]}>Live Tracking</Text>
+              <Text style={styles.fullMapSubtitle}>{assignedRequest?.requester || 'No accepted request'}</Text>
+            </View>
+          </View>
+
+          <View style={[styles.fullTripSheet, darkMode && styles.cardDark]}>
+            <View style={styles.fullTripLegendRow}>
+              <View style={styles.fullTripLegendItem}>
+                <View style={[styles.legendDot, { backgroundColor: RED }]} />
+                <Text style={[styles.fullTripLegendText, darkMode && styles.textDark]}>Emergency Location</Text>
+              </View>
+              <View style={styles.fullTripLegendItem}>
+                <View style={[styles.legendDot, { backgroundColor: GREEN }]} />
+                <Text style={[styles.fullTripLegendText, darkMode && styles.textDark]}>You</Text>
+              </View>
+            </View>
+
+            <View style={styles.fullTripDivider} />
+
+            <View style={styles.fullTripStats}>
+              <View style={styles.fullTripStatRow}>
+                <Ionicons name="navigate" size={20} color={GREEN} />
+                <Text style={[styles.fullTripStatText, darkMode && styles.textDark]}>{mapDistance ? `${mapDistance.toFixed(2)} km` : '-- km'}</Text>
+              </View>
+              <View style={styles.fullTripStatRow}>
+                <Ionicons name="time" size={20} color={GREEN} />
+                <Text style={[styles.fullTripStatText, darkMode && styles.textDark]}>{mapEtaMinutes ? `${mapEtaMinutes} minutes` : '-- minutes'}</Text>
+              </View>
+            </View>
+
+            <TouchableOpacity
+              style={[styles.fullTripCompleteButton, !assignedRequest && styles.buttonDisabled]}
+              activeOpacity={0.85}
+              disabled={!assignedRequest}
+              onPress={() => assignedRequest && handleCompleteRequest(assignedRequest.id)}
+            >
+              <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />
+              <Text style={styles.fullTripCompleteText}>Mark as Arrived</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+        {renderRequestDetailsModal()}
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={[styles.container, darkMode && styles.containerDark]} edges={['top', 'left', 'right']}>
@@ -951,6 +1095,58 @@ function calculateDistanceKm(left: { latitude: string; longitude: string }, righ
   return earthRadiusKm * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+function extractRouteCoordinates(value: unknown): { latitude: string; longitude: string }[] {
+  const candidates: { latitude: string; longitude: string }[][] = [];
+
+  const visit = (node: unknown) => {
+    if (!node) {
+      return;
+    }
+
+    if (Array.isArray(node)) {
+      const coordinateList = node
+        .map((item) => {
+          if (Array.isArray(item) && item.length >= 2) {
+            const lng = Number(item[0]);
+            const lat = Number(item[1]);
+
+            if (!Number.isNaN(lat) && !Number.isNaN(lng)) {
+              return { latitude: lat.toString(), longitude: lng.toString() };
+            }
+          }
+
+          if (typeof item === 'object' && item !== null) {
+            const record = item as Record<string, unknown>;
+            const lat = Number(record.lat ?? record.latitude);
+            const lng = Number(record.lng ?? record.lon ?? record.longitude);
+
+            if (!Number.isNaN(lat) && !Number.isNaN(lng)) {
+              return { latitude: lat.toString(), longitude: lng.toString() };
+            }
+          }
+
+          return null;
+        })
+        .filter((item): item is { latitude: string; longitude: string } => Boolean(item));
+
+      if (coordinateList.length > 1) {
+        candidates.push(coordinateList);
+      }
+
+      node.forEach(visit);
+      return;
+    }
+
+    if (typeof node === 'object') {
+      Object.values(node as Record<string, unknown>).forEach(visit);
+    }
+  };
+
+  visit(value);
+
+  return candidates.sort((left, right) => right.length - left.length)[0] || [];
+}
+
 const styles = StyleSheet.create({
   container: {
     backgroundColor: '#FFFFFF',
@@ -958,6 +1154,134 @@ const styles = StyleSheet.create({
   },
   containerDark: {
     backgroundColor: '#050505',
+  },
+  fullMapScreen: {
+    backgroundColor: '#EEF6F7',
+    flex: 1,
+    position: 'relative',
+  },
+  fullMapFallback: {
+    backgroundColor: '#EEF6F7',
+    flex: 1,
+    minHeight: 560,
+    position: 'relative',
+  },
+  fullMapRouteLine: {
+    backgroundColor: '#1D4ED8',
+    borderRadius: 5,
+    height: 9,
+    left: '28%',
+    position: 'absolute',
+    top: '44%',
+    transform: [{ rotate: '-64deg' }],
+    width: '52%',
+  },
+  fullMapUserMarker: {
+    backgroundColor: RED,
+    bottom: '22%',
+    left: '18%',
+  },
+  fullMapResponderMarker: {
+    backgroundColor: GREEN,
+    right: '16%',
+    top: '18%',
+  },
+  fullMapTopBar: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.95)',
+    borderColor: BORDER,
+    borderRadius: 8,
+    borderWidth: 1,
+    flexDirection: 'row',
+    left: 14,
+    minHeight: 56,
+    paddingHorizontal: 10,
+    position: 'absolute',
+    right: 14,
+    top: 12,
+  },
+  fullMapBackButton: {
+    alignItems: 'center',
+    height: 42,
+    justifyContent: 'center',
+    marginRight: 8,
+    width: 42,
+  },
+  fullMapTitleWrap: {
+    flex: 1,
+  },
+  fullMapTitle: {
+    color: NAVY,
+    fontSize: 18,
+    fontWeight: '900',
+  },
+  fullMapSubtitle: {
+    color: MUTED,
+    fontSize: 12,
+    fontWeight: '800',
+    marginTop: 2,
+  },
+  fullTripSheet: {
+    backgroundColor: '#FFFFFF',
+    borderColor: BORDER,
+    borderRadius: 18,
+    borderWidth: 1,
+    bottom: 18,
+    left: 14,
+    padding: 16,
+    position: 'absolute',
+    right: 14,
+  },
+  fullTripLegendRow: {
+    gap: 10,
+  },
+  fullTripLegendItem: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 9,
+  },
+  legendDot: {
+    borderRadius: 6,
+    height: 12,
+    width: 12,
+  },
+  fullTripLegendText: {
+    color: NAVY,
+    fontSize: 14,
+    fontWeight: '900',
+  },
+  fullTripDivider: {
+    backgroundColor: BORDER,
+    height: 1,
+    marginVertical: 14,
+  },
+  fullTripStats: {
+    gap: 10,
+    marginBottom: 14,
+  },
+  fullTripStatRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 10,
+  },
+  fullTripStatText: {
+    color: NAVY,
+    fontSize: 16,
+    fontWeight: '900',
+  },
+  fullTripCompleteButton: {
+    alignItems: 'center',
+    backgroundColor: GREEN,
+    borderRadius: 8,
+    flexDirection: 'row',
+    gap: 8,
+    height: 52,
+    justifyContent: 'center',
+  },
+  fullTripCompleteText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '900',
   },
   scrollContent: {
     paddingBottom: 24,
@@ -1162,12 +1486,27 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
   },
+  requestTitleWrap: {
+    flex: 1,
+    marginRight: 8,
+  },
   requestType: {
     color: NAVY,
-    flex: 1,
     fontSize: 17,
     fontWeight: '800',
-    marginRight: 8,
+  },
+  criticalBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#7F1D1D',
+    borderRadius: 8,
+    marginTop: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  criticalBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '900',
   },
   requestTime: {
     color: FAINT,
@@ -1248,6 +1587,11 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 8,
+  },
+  detailsStatusBadge: {
+    alignItems: 'center',
+    flex: 1,
+    justifyContent: 'center',
   },
   completedBadge: {
     alignSelf: 'flex-start',
@@ -1384,6 +1728,52 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     marginBottom: 16,
     overflow: 'hidden',
+  },
+  adminMapShell: {
+    backgroundColor: SURFACE,
+    borderColor: BORDER,
+    borderRadius: 8,
+    borderWidth: 1,
+    marginBottom: 16,
+    overflow: 'hidden',
+  },
+  adminMapCanvas: {
+    backgroundColor: '#EEF6F7',
+    height: 360,
+    position: 'relative',
+  },
+  adminMapGrid: {
+    backgroundColor: '#EEF6F7',
+    height: 360,
+    position: 'relative',
+  },
+  adminMapOverlay: {
+    left: 12,
+    position: 'absolute',
+    top: 12,
+  },
+  liveBadgeLight: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.94)',
+    borderRadius: 8,
+    flexDirection: 'row',
+    paddingHorizontal: 11,
+    paddingVertical: 8,
+  },
+  liveBadgeLightText: {
+    color: NAVY,
+    fontSize: 12,
+    fontWeight: '900',
+    marginLeft: 7,
+  },
+  mapInfoRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 12,
+    padding: 14,
+  },
+  mapInfoTextWrap: {
+    flex: 1,
   },
   mapGrid: {
     backgroundColor: '#EEF6F7',
@@ -1656,6 +2046,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     minHeight: 40,
     paddingHorizontal: 16,
+  },
+  buttonDisabled: {
+    opacity: 0.7,
   },
   saveButtonText: {
     color: '#FFFFFF',
