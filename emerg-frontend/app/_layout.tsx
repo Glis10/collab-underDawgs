@@ -1,13 +1,26 @@
-import { Stack } from 'expo-router';
+import React, { useEffect, useState } from 'react';
+import { Stack, usePathname } from 'expo-router';
 import { AppPreferencesProvider } from '@/src/lib/app-preferences';
 import { ExitConfirmation } from '@/components/exit-confirmation';
+import { AiChatAssistant } from '@/components/ai-chat-assistant';
+import { getAuthRevision, getCurrentUser, subscribeAuthChanges } from '@/src/lib/auth';
 
 const stackScreenOptions = {
   headerShown: false,
   animation: 'none' as const,
 };
 
+const userAssistantRoutes = ['/dashboard', '/service-request', '/track-request', '/contacts', '/settings', '/change-password'];
+
 export default function RootLayout() {
+  const pathname = usePathname();
+  const [, setAuthRevision] = useState(getAuthRevision);
+  const currentUser = getCurrentUser();
+  const isUserSideRoute = userAssistantRoutes.some((route) => pathname === route || pathname.startsWith(`${route}/`));
+  const showAssistant = isUserSideRoute && currentUser?.role !== 'admin';
+
+  useEffect(() => subscribeAuthChanges(() => setAuthRevision(getAuthRevision())), []);
+
   return (
     <AppPreferencesProvider>
       <ExitConfirmation />
@@ -31,6 +44,7 @@ export default function RootLayout() {
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
       </Stack>
+      {showAssistant ? <AiChatAssistant /> : null}
     </AppPreferencesProvider>
   );
 }

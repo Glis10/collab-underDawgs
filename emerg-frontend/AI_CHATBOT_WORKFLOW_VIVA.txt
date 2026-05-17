@@ -1,0 +1,360 @@
+EmerG AI Chatbot Workflow and Viva Preparation
+=============================================
+
+Project Feature
+---------------
+I built a floating AI chatbot assistant for my EmerG emergency-help application. The purpose of the chatbot is to guide users with emergency-related help, hospital information, safety guidance, and app usage support. The chatbot appears only after a normal user logs in and only on the user-side screens, so it does not disturb authentication pages or admin workflows.
+
+
+What I Did
+----------
+1. I added a floating chatbot button to the frontend.
+   - The button is always available on user-side screens after login.
+   - It opens and closes the chatbot window.
+   - I later made the button movable so the user can drag it around the screen.
+
+2. I created a modern chat window UI.
+   - The UI uses an emergency-friendly color theme with red and trustworthy green.
+   - It includes user messages, assistant messages, timestamps, typing animation, and auto-scroll.
+   - It is responsive and mobile-friendly.
+
+3. I connected the chatbot to the backend instead of calling AI directly from the frontend.
+   - This keeps the AI API key hidden from the mobile app bundle.
+   - The frontend only sends the message to my backend.
+   - The backend then talks to the AI provider.
+
+4. I added backend chat handling.
+   - I created a chat API route: POST /api/chat/message.
+   - The route receives the user message, sends it to the AI provider, and returns the AI response.
+   - The backend also stores the conversation in MongoDB.
+
+5. I added MongoDB chat history storage.
+   - I created a ChatConversation model.
+   - Each conversation stores:
+     - conversationId
+     - userId
+     - messages
+     - message role, either user or assistant
+     - timestamp
+     - lastMessageAt
+
+6. I added proper error handling.
+   - If the backend is unreachable, the frontend shows a helpful error.
+   - If the AI provider fails, the chatbot displays an error message instead of crashing.
+   - If the API key is missing, the backend gives a clear configuration error.
+
+7. I restricted chatbot visibility.
+   - The chatbot is hidden on login, signup, forgot password, reset password, and admin pages.
+   - It appears on user-side pages such as dashboard, service request, track request, contacts, settings, and change password.
+
+
+Why I Did Not Call AI Directly From Frontend
+-------------------------------------------
+I did not call the AI API directly from the frontend because frontend environment variables in Expo can be exposed in the app bundle. If the API key was placed in the frontend .env file, anyone could potentially inspect the app and misuse the key.
+
+Instead, I used the backend as a secure layer. The frontend sends the user message to the backend, and only the backend uses the private AI API key. This is a safer and more professional approach.
+
+
+Initial Plan: Gemini API
+------------------------
+At first, I planned to use the free Gemini API from Google AI Studio because it is popular, easy to use, and suitable for a college project. I added support for Gemini on the backend using the generateContent API.
+
+The original Gemini model used was gemini-1.5-flash, but Google returned this error:
+
+models/gemini-1.5-flash is not found for API version v1beta
+
+This happened because the model name was outdated or not available for the current API version.
+
+I then updated the model to:
+
+gemini-flash-latest
+
+I also tested gemini-2.5-flash. After that, the model-not-found problem was solved, but Google returned a different error:
+
+403: Your project has been denied access. Please contact support.
+
+This means the code was reaching Google correctly, but the Google project or API key was denied access. This was not a coding error. It was related to Google AI Studio project access, billing, region, API restrictions, or account eligibility.
+
+
+Why I Switched From Gemini to OpenRouter
+---------------------------------------
+Since Gemini kept returning project access denied errors, I switched to OpenRouter's free-tier AI route.
+
+I used:
+
+AI_PROVIDER=openrouter
+OPENROUTER_MODEL=openrouter/free
+
+I chose OpenRouter because:
+1. It provides access to free AI models.
+2. It uses an OpenAI-compatible chat completions API.
+3. It was easier to test successfully with my project.
+4. It allowed the chatbot feature to work without depending on the blocked Gemini project.
+
+I kept Gemini support in the backend as an optional provider. This means if Gemini access works in the future, I can switch back by changing the environment variable:
+
+AI_PROVIDER=gemini
+
+
+Why I Used MongoDB for Chat History
+----------------------------------
+The project already used MongoDB in the backend, so I continued with the same database instead of introducing another storage system.
+
+MongoDB is suitable for chat history because chat messages are naturally document-like. A conversation can be stored as one document containing an array of messages. This makes it simple to store and retrieve the full conversation.
+
+
+Why I Used Environment Variables
+--------------------------------
+I used environment variables for API keys and model names because sensitive information should not be hardcoded in source code.
+
+Important backend environment variables are:
+
+AI_PROVIDER=openrouter
+OPENROUTER_API_KEY=actual_openrouter_key
+OPENROUTER_MODEL=openrouter/free
+GEMINI_API_KEY=actual_gemini_key_if_used
+GEMINI_MODEL=gemini-flash-latest
+
+The real API key is added in the backend .env file, not the frontend .env file.
+
+
+Frontend Files I Worked On
+--------------------------
+1. components/ai-chat-assistant.tsx
+   - Contains the floating chatbot UI.
+   - Handles open/close state.
+   - Handles dragging.
+   - Displays messages, timestamps, and typing animation.
+
+2. src/lib/chat.ts
+   - Sends chatbot messages from frontend to backend.
+   - Handles API errors from the backend.
+
+3. app/_layout.tsx
+   - Mounts the chatbot globally.
+   - Controls where the chatbot appears.
+   - Ensures the chatbot appears only on user-side screens.
+
+4. src/lib/auth.ts
+   - Added auth change subscription logic.
+   - This helps the layout update after login/logout.
+
+
+Backend Files I Worked On
+-------------------------
+1. src/controllers/chat.controller.js
+   - Contains the AI provider call logic.
+   - Supports OpenRouter and Gemini.
+   - Saves user and assistant messages to MongoDB.
+
+2. src/routes/api/chat.routes.js
+   - Defines the chat API route.
+
+3. src/routes/api/index.js
+   - Registers the chat route under /api/chat.
+
+4. src/db/models.js
+   - Adds the ChatConversation model.
+
+5. src/config/env.config.js
+   - Adds AI-related environment variables.
+
+6. .env and .env.sample
+   - Stores API provider configuration and example variables.
+
+
+Main Flow of the Chatbot
+------------------------
+1. User logs in as a normal user.
+2. User goes to a user-side screen such as dashboard.
+3. Floating chatbot button appears.
+4. User taps the button.
+5. Chat window opens.
+6. User types a message.
+7. Frontend sends the message to backend /api/chat/message.
+8. Backend saves the user message in MongoDB.
+9. Backend sends the message and short conversation history to the AI provider.
+10. AI provider returns a response.
+11. Backend saves the assistant response in MongoDB.
+12. Frontend displays the response with timestamp.
+
+
+Special Emergency Assistant Behavior
+------------------------------------
+The assistant is instructed to behave as an emergency assistant for EmerG.
+
+It should answer:
+- emergency help questions
+- hospital information questions
+- safety guidance questions
+- app usage help questions
+
+It should keep answers:
+- short
+- calm
+- beginner-friendly
+- practical
+
+It should not:
+- claim to dispatch emergency services by itself
+- give medical diagnosis
+- replace real emergency services
+
+For serious emergencies, it should guide the user to contact local emergency services and use the EmerG request flow.
+
+
+Challenges I Faced
+------------------
+1. Gemini model issue
+   - The old model gemini-1.5-flash was not available for the API version.
+   - I updated the model to a newer supported Flash model.
+
+2. Gemini project access denied
+   - Even after updating the model, Google returned 403 access denied.
+   - This showed that the problem was with Google project/API access, not my backend code.
+
+3. Choosing another free AI provider
+   - To keep the project working, I switched to OpenRouter free-tier AI.
+   - I made the backend configurable so the provider can be changed later.
+
+4. Chatbot visibility after login
+   - The chatbot originally depended on a simple current user variable.
+   - React did not always re-render after login.
+   - I added auth change notification so the layout knows when login/logout happens.
+
+5. Making the chatbot movable
+   - The first draggable version did not work properly because touch events were affected by Pressable.
+   - I changed the implementation to use PanResponder directly for tap and drag behavior.
+
+
+What I Did Not Do
+-----------------
+1. I did not expose the AI key in the frontend.
+   - This would be insecure.
+   - I kept keys in the backend.
+
+2. I did not make the chatbot visible on admin screens.
+   - Admin screens have different responsibilities.
+   - The chatbot is meant for user-side emergency assistance.
+
+3. I did not depend only on Gemini.
+   - Gemini access was blocked for the project.
+   - I used OpenRouter as a practical free-tier alternative.
+
+4. I did not make the chatbot perform real emergency dispatch.
+   - The chatbot only guides users.
+   - Actual emergency request handling remains in the main EmerG app workflow.
+
+5. I did not make the chatbot give medical diagnosis.
+   - That could be unsafe.
+   - It gives basic safety guidance and suggests contacting emergency services.
+
+
+Role of Codex in My Work
+------------------------
+I used Codex as a development assistant during the process. It helped me speed up implementation, debug issues, and understand possible solutions. However, I was not wholly dependent on it.
+
+I still made the project decisions, tested the behavior, understood the flow, configured the environment variables, and learned why each part was added. I used Codex more like a coding and learning support tool, similar to using documentation, Stack Overflow, or an IDE assistant.
+
+The final implementation is part of my own project workflow, and I understand the main code structure, API flow, database usage, and provider decisions.
+
+
+Possible Viva Questions and Answers
+-----------------------------------
+
+Q1. What is the purpose of your chatbot?
+A. The chatbot helps users with emergency-related questions, hospital information, safety guidance, and EmerG app usage. It is designed to give short and helpful responses.
+
+Q2. Why did you add the chatbot to EmerG?
+A. EmerG is an emergency-help application, so users may need quick guidance. The chatbot improves user support by giving instant basic help before or while using the emergency request features.
+
+Q3. Why does the chatbot appear only after login?
+A. It appears only after login because it is part of the user-side app experience. I wanted to avoid showing it on login, signup, and admin screens where it is not needed.
+
+Q4. Why is the chatbot not shown on admin screens?
+A. Admin users have a different workflow, such as managing emergency requests. The chatbot is mainly for normal users who may need help and guidance.
+
+Q5. Why did you use the backend for AI calls?
+A. I used the backend because API keys should not be exposed in the frontend. The backend safely stores the key and acts as a secure bridge between the app and the AI provider.
+
+Q6. What happens when a user sends a message?
+A. The frontend sends the message to the backend. The backend stores the user message in MongoDB, sends the message to the AI provider, stores the assistant reply, and returns the reply to the frontend.
+
+Q7. Which database did you use for chat history?
+A. I used MongoDB because the project already uses MongoDB and chat conversations fit well as document-based data.
+
+Q8. How is chat history stored?
+A. Each conversation is stored as a document with a conversationId, userId, message list, timestamps, and lastMessageAt. Each message has a role and text.
+
+Q9. Why did you first choose Gemini?
+A. Gemini was chosen because Google AI Studio provides free API access and Gemini Flash models are suitable for lightweight chatbot tasks.
+
+Q10. Why did you stop using Gemini?
+A. The first model name was outdated, and after updating it, Google returned project access denied. Since that was related to Google project access and not my code, I switched to another free-tier provider.
+
+Q11. Which AI provider did you use finally?
+A. I used OpenRouter with the openrouter/free model route. It allows access to free AI models through an OpenAI-compatible API.
+
+Q12. Why OpenRouter?
+A. OpenRouter provides free model options, was easy to integrate with the backend, and solved the access problem I had with Gemini.
+
+Q13. Can the project still use Gemini later?
+A. Yes. I kept provider configuration in environment variables. If Gemini access works later, I can set AI_PROVIDER=gemini and use the Gemini key and model.
+
+Q14. What is the role of environment variables?
+A. Environment variables store sensitive and configurable values such as API keys, provider names, and model names. This avoids hardcoding secrets in the source code.
+
+Q15. What is the chatbot model configured as?
+A. For OpenRouter, the model is openrouter/free. For Gemini fallback, the model is gemini-flash-latest.
+
+Q16. How did you handle loading while the AI is replying?
+A. I added a typing/loading animation in the chat window. It appears while the backend is waiting for the AI response.
+
+Q17. How did you handle API failure?
+A. The frontend catches errors and displays a friendly message. The backend also returns clear errors if the API key is missing or the AI request fails.
+
+Q18. Why did you make the chatbot movable?
+A. A movable chatbot improves usability. If it covers important content, the user can drag it to another position.
+
+Q19. How did you implement dragging?
+A. I used React Native PanResponder to handle touch movement. The button position is updated while dragging and clamped inside the screen boundaries.
+
+Q20. What is auto-scroll?
+A. Auto-scroll means the chat window automatically scrolls to the latest message when a new message or loading indicator appears.
+
+Q21. Why are timestamps included?
+A. Timestamps help users understand when each message was sent or received, which is useful in chat interfaces.
+
+Q22. What kind of answers should the chatbot give?
+A. It should give short, calm, beginner-friendly, and practical answers related to emergencies, hospitals, safety, and app usage.
+
+Q23. Can the chatbot replace emergency services?
+A. No. The chatbot only provides guidance. In serious emergencies, users should call local emergency services and use the EmerG request flow.
+
+Q24. Does the chatbot diagnose medical problems?
+A. No. It should not diagnose medical problems. It can provide basic safety guidance and suggest contacting professionals.
+
+Q25. What is the benefit of saving chat history?
+A. Saving chat history allows conversations to be reviewed later and helps maintain continuity in the assistant's responses.
+
+Q26. Why did you send recent history to the AI provider?
+A. Sending recent history gives the AI context so it can answer more naturally within the same conversation.
+
+Q27. Did you use any external help?
+A. I used documentation and Codex as a development assistant to help with coding, debugging, and learning. I was not fully dependent on it because I reviewed, configured, tested, and understood the implementation myself.
+
+Q28. What did you learn from this feature?
+A. I learned about secure API integration, backend-based AI calls, MongoDB conversation storage, frontend chat UI design, error handling, environment variables, and provider switching.
+
+Q29. What would you improve in the future?
+A. I would add persistent user sessions, a chat history screen, better hospital data integration, voice input, and more personalized emergency guidance based on user location.
+
+Q30. What is the most important security decision in this feature?
+A. The most important security decision is keeping the AI API key on the backend instead of exposing it in the frontend.
+
+
+Final Summary
+-------------
+In this workflow, I added an AI chatbot assistant to the EmerG application. I started with Gemini, handled model and access issues, then switched to OpenRouter free-tier AI to keep the project functional. I built the chatbot UI, connected it to the backend, stored conversations in MongoDB, added error handling, restricted it to user-side screens after login, and made it movable.
+
+This feature improves the EmerG user experience by giving quick emergency-related support while still keeping real emergency handling inside the main app workflow.
