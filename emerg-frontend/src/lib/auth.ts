@@ -172,6 +172,13 @@ export const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL;
 
 let authToken: string | null = null;
 let currentUser: AuthUser | null = null;
+let authRevision = 0;
+const authListeners = new Set<() => void>();
+
+function notifyAuthListeners() {
+  authRevision += 1;
+  authListeners.forEach((listener) => listener());
+}
 
 function normalizePhoneNumber(phoneNumber: string) {
   return phoneNumber.replace(/\D/g, '');
@@ -282,12 +289,25 @@ export async function loginUser(input: LoginInput): Promise<AuthPayload> {
 
   authToken = payload.token;
   currentUser = payload.user;
+  notifyAuthListeners();
 
   return payload;
 }
 
 export function getCurrentUser() {
   return currentUser;
+}
+
+export function getAuthRevision() {
+  return authRevision;
+}
+
+export function subscribeAuthChanges(listener: () => void) {
+  authListeners.add(listener);
+
+  return () => {
+    authListeners.delete(listener);
+  };
 }
 
 export function updateCurrentUserName(name: string) {
@@ -299,6 +319,7 @@ export function updateCurrentUserName(name: string) {
     ...currentUser,
     name,
   };
+  notifyAuthListeners();
 }
 
 export async function updateMyProfile(input: Partial<Pick<AuthUser, 'name' | 'email' | 'phoneNumber' | 'primaryAddress'>>): Promise<AuthUser> {
@@ -316,6 +337,7 @@ export async function updateMyProfile(input: Partial<Pick<AuthUser, 'name' | 'em
     ...(currentUser || user),
     ...user,
   };
+  notifyAuthListeners();
 
   return currentUser;
 }
@@ -323,6 +345,7 @@ export async function updateMyProfile(input: Partial<Pick<AuthUser, 'name' | 'em
 export function logoutUser() {
   authToken = null;
   currentUser = null;
+  notifyAuthListeners();
 }
 
 export async function createServiceProviderCredentials(input: ServiceProviderInput): Promise<ServiceProviderPayload> {
