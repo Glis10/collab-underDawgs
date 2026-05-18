@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Href, useRouter } from 'expo-router';
 import { loginUser } from '@/src/lib/auth';
+import { registerCurrentDeviceForPushNotifications } from '@/src/lib/push-notifications';
 
 const adminDashboardRoute = '/admin-dashboard' as Href;
 
@@ -33,6 +34,7 @@ export default function AdminSignInScreen() {
         return;
       }
 
+      registerCurrentDeviceForPushNotifications().catch(() => undefined);
       router.replace(adminDashboardRoute);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to sign in right now.';
@@ -82,7 +84,8 @@ export default function AdminSignInScreen() {
                 placeholder="Enter phone number"
                 keyboardType="phone-pad"
                 value={phoneNumber}
-                onChangeText={setPhoneNumber}
+                onChangeText={(value) => setPhoneNumber(value.replace(/\D/g, '').slice(0, 10))}
+                maxLength={10}
                 placeholderTextColor="#A0AEC0"
               />
             </View>
