@@ -23,6 +23,11 @@ type AuthPayload = {
   user: AuthUser;
 };
 
+type RegisterPayload = {
+  userId: string;
+  email: string;
+};
+
 type ServiceType = 'ambulance' | 'police' | 'fire_truck';
 
 type ServiceProviderInput = {
@@ -256,14 +261,14 @@ async function apiRequestAllowEmpty<T>(path: string, init: RequestInit): Promise
   return payload.data ?? ({ message: payload.message } as T);
 }
 
-export async function registerUser(input: RegisterInput): Promise<AuthPayload> {
+export async function registerUser(input: RegisterInput): Promise<RegisterPayload> {
   const normalizedPhoneNumber = normalizePhoneNumber(input.phoneNumber);
 
-  if (!normalizedPhoneNumber) {
-    throw new Error('Please enter a valid phone number.');
+  if (normalizedPhoneNumber.length !== 10) {
+    throw new Error('Phone number must be exactly 10 digits.');
   }
 
-  return apiRequest<AuthPayload>('/auth/register', {
+  return apiRequest<RegisterPayload>('/auth/register', {
     method: 'POST',
     body: JSON.stringify({
       ...input,
@@ -272,11 +277,27 @@ export async function registerUser(input: RegisterInput): Promise<AuthPayload> {
   });
 }
 
+export async function verifyRegistration(userId: string, otpToken: string): Promise<AuthPayload> {
+  const payload = await apiRequest<AuthPayload>('/auth/verify-registration', {
+    method: 'POST',
+    body: JSON.stringify({
+      userId,
+      otpToken,
+    }),
+  });
+
+  authToken = payload.token;
+  currentUser = payload.user;
+  notifyAuthListeners();
+
+  return payload;
+}
+
 export async function loginUser(input: LoginInput): Promise<AuthPayload> {
   const normalizedPhoneNumber = normalizePhoneNumber(input.phoneNumber);
 
-  if (!normalizedPhoneNumber) {
-    throw new Error('Please enter a valid phone number.');
+  if (normalizedPhoneNumber.length !== 10) {
+    throw new Error('Phone number must be exactly 10 digits.');
   }
 
   const payload = await apiRequest<AuthPayload>('/auth/login', {

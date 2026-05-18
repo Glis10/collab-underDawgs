@@ -121,12 +121,6 @@ export default function AdminSignInScreen() {
               )}
             </TouchableOpacity>
 
-            <View style={styles.footerContainer}>
-              <Text style={styles.footerText}>{"Don't have an account? "}</Text>
-              <TouchableOpacity onPress={() => router.push('/SignUp')}>
-                <Text style={styles.footerLink}>Sign Up</Text>
-              </TouchableOpacity>
-            </View>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>

@@ -13,8 +13,12 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { Href, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { registerUser } from '@/src/lib/auth';
+
+function isValidFullName(name: string) {
+  return name.trim().split(/\s+/).filter(Boolean).length >= 2;
+}
 
 export default function SignUpScreen() {
   const router = useRouter();
@@ -42,6 +46,18 @@ export default function SignUpScreen() {
       return;
     }
 
+    if (!isValidFullName(fullName)) {
+      Alert.alert('Invalid full name', 'Please enter your first and last name.');
+      return;
+    }
+
+    const normalizedPhone = phone.replace(/\D/g, '');
+
+    if (normalizedPhone.length !== 10) {
+      Alert.alert('Invalid phone number', 'Phone number must be exactly 10 digits.');
+      return;
+    }
+
     if (password !== confirmPassword) {
       Alert.alert('Password mismatch', 'Password and confirm password must match.');
       return;
@@ -56,16 +72,23 @@ export default function SignUpScreen() {
 
     try {
       setIsSubmitting(true);
-      await registerUser({
+      const response = await registerUser({
         name: fullName.trim(),
         age: numericAge,
         email: email.trim(),
-        phoneNumber: phone.trim(),
+        phoneNumber: normalizedPhone,
         primaryAddress: address.trim(),
         password,
       });
 
-      router.replace('/UserSignIn' as Href);
+      router.push({
+        pathname: '/OtpVerification',
+        params: {
+          email: email.trim(),
+          userId: response.userId,
+          mode: 'registration',
+        },
+      });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to sign up right now.';
       Alert.alert('Sign up failed', message);

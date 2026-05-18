@@ -1,9 +1,18 @@
 import React from 'react';
-import { ScrollView, Text, StyleSheet, View } from 'react-native';
+import { ScrollView, Text, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 
 export default function TermsScreen() {
+  const router = useRouter();
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+        <MaterialCommunityIcons name="arrow-left" size={22} color="#1A202C" />
+        <Text style={styles.backButtonText}>Back</Text>
+      </TouchableOpacity>
+
       <View style={styles.section}>
         <Text style={styles.heading}>1. Acceptance of Terms</Text>
         <Text style={styles.paragraph}>
@@ -52,6 +61,19 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 720,
     alignSelf: 'center',
+  },
+  backButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 8,
+    marginBottom: 24,
+    paddingVertical: 8,
+  },
+  backButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#1A202C',
   },
   section: {
     marginBottom: 24,
