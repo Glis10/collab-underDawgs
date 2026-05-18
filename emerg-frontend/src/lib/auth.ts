@@ -324,6 +324,18 @@ export async function loginUser(input: LoginInput): Promise<AuthPayload> {
   return payload;
 }
 
+export async function registerNotificationToken(pushToken: string): Promise<{ message?: string }> {
+  const token = requireAuthToken('Please sign in again before enabling notifications.');
+
+  return apiRequestAllowEmpty<{ message?: string }>('/v1/notifications/token', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ token: pushToken }),
+  });
+}
+
 export function getCurrentUser() {
   return currentUser;
 }
