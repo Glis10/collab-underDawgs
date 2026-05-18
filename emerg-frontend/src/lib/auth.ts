@@ -23,11 +23,6 @@ type AuthPayload = {
   user: AuthUser;
 };
 
-type RegisterPayload = {
-  userId: string;
-  email: string;
-};
-
 type ServiceType = 'ambulance' | 'police' | 'fire_truck';
 
 type ServiceProviderInput = {
@@ -64,6 +59,7 @@ type RegisterInput = {
   phoneNumber: string;
   primaryAddress: string;
   password: string;
+  otpToken: string;
 };
 
 export type EmergencyContact = {
@@ -261,20 +257,33 @@ async function apiRequestAllowEmpty<T>(path: string, init: RequestInit): Promise
   return payload.data ?? ({ message: payload.message } as T);
 }
 
-export async function registerUser(input: RegisterInput): Promise<RegisterPayload> {
+export async function sendRegistrationOtp(email: string): Promise<{ email: string }> {
+  return apiRequest<{ email: string }>('/auth/send-registration-otp', {
+    method: 'POST',
+    body: JSON.stringify({ email }),
+  });
+}
+
+export async function registerUser(input: RegisterInput): Promise<AuthPayload> {
   const normalizedPhoneNumber = normalizePhoneNumber(input.phoneNumber);
 
   if (normalizedPhoneNumber.length !== 10) {
     throw new Error('Phone number must be exactly 10 digits.');
   }
 
-  return apiRequest<RegisterPayload>('/auth/register', {
+  const payload = await apiRequest<AuthPayload>('/auth/register', {
     method: 'POST',
     body: JSON.stringify({
       ...input,
       phoneNumber: normalizedPhoneNumber,
     }),
   });
+
+  authToken = payload.token;
+  currentUser = payload.user;
+  notifyAuthListeners();
+
+  return payload;
 }
 
 export async function verifyRegistration(userId: string, otpToken: string): Promise<AuthPayload> {
