@@ -123,6 +123,9 @@ function buildLeafletHtml({
       const routeCoordinates = ${routeJs};
       const selected = ${selectedJs};
       const canSelectLocation = ${Boolean(onLocationSelect)};
+      let userMarker = null;
+      let responderMarkers = [];
+      let routeLayer = null;
       const map = L.map('map', {
         boxZoom: ${zoomEnabled},
         doubleClickZoom: ${zoomEnabled},
@@ -137,7 +140,7 @@ function buildLeafletHtml({
         attribution: '&copy; OpenStreetMap contributors'
       }).addTo(map);
 
-      L.circleMarker(user, {
+      userMarker = L.circleMarker(user, {
         radius: 9,
         color: '#FFFFFF',
         weight: 3,
@@ -188,20 +191,22 @@ function buildLeafletHtml({
 
       const bounds = [user];
 
-      responders.forEach((responder) => {
-        L.circleMarker(responder.point, {
+      const drawResponders = (items) => {
+        responderMarkers.forEach((marker) => marker.remove());
+        responderMarkers = items.map((responder) => L.circleMarker(responder.point, {
           radius: 9,
           color: '#FFFFFF',
           weight: 3,
           fillColor: '${responderMarkerColor}',
           fillOpacity: 1
-        }).addTo(map).bindPopup(responder.label);
+        }).addTo(map).bindPopup(responder.label));
+      };
 
-        bounds.push(responder.point);
-      });
+      drawResponders(responders);
+      responders.forEach((responder) => bounds.push(responder.point));
 
       if (routeCoordinates.length > 1) {
-        L.polyline(routeCoordinates, {
+        routeLayer = L.polyline(routeCoordinates, {
           color: '#3182CE',
           weight: 5,
           opacity: 0.75
@@ -216,6 +221,21 @@ function buildLeafletHtml({
 
       setTimeout(() => map.invalidateSize(), 80);
       setTimeout(() => map.invalidateSize(), 300);
+
+      window.addEventListener('message', (event) => {
+        try {
+          const payload = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
+          if (payload?.type !== 'emergency-map-update') return;
+          if (payload.user) userMarker.setLatLng([payload.user.latitude, payload.user.longitude]);
+          if (Array.isArray(payload.responders)) {
+            drawResponders(payload.responders.map((item) => ({ point: [item.latitude, item.longitude], label: item.label || '${escapeHtml(responderLabel)}' })));
+          }
+          if (Array.isArray(payload.route) && payload.route.length > 1) {
+            if (routeLayer) routeLayer.setLatLngs(payload.route.map((point) => [point.latitude, point.longitude]));
+            else routeLayer = L.polyline(payload.route.map((point) => [point.latitude, point.longitude]), { color: '#3182CE', weight: 5, opacity: 0.75 }).addTo(map);
+          }
+        } catch {}
+      });
     </script>
   </body>
 </html>`;
@@ -324,6 +344,9 @@ function buildGalliHtml({
       const selected = ${selectedJs};
       const canSelectLocation = ${Boolean(onLocationSelect)};
       const canZoom = ${zoomEnabled};
+      let userMarker = null;
+      let responderMarkers = [];
+      let selectedMarker = null;
 
       const postSelection = (lngLat) => {
         const message = JSON.stringify({
@@ -373,24 +396,36 @@ function buildGalliHtml({
         map.on('load', () => {
           document.getElementById('load-state').style.display = 'none';
 
-          new maplibregl.Marker({ element: createMarkerEl('user', '${escapeHtml(userMarkerText)}') }).setLngLat(user).addTo(map);
+          userMarker = new maplibregl.Marker({ element: createMarkerEl('user', '${escapeHtml(userMarkerText)}') }).setLngLat(user).addTo(map);
 
-          responders.forEach((point) => {
-            new maplibregl.Marker({ element: createMarkerEl('responder', '${escapeHtml(responderMarkerText)}') }).setLngLat(point).addTo(map);
-          });
+          const drawResponders = (items) => {
+            responderMarkers.forEach((marker) => marker.remove());
+            responderMarkers = items.map((point) => new maplibregl.Marker({ element: createMarkerEl('responder', '${escapeHtml(responderMarkerText)}') }).setLngLat(point).addTo(map));
+          };
+
+          drawResponders(responders);
 
           if (selected) {
-            new maplibregl.Marker({ element: createMarkerEl('selected', 'P') }).setLngLat([selected[1], selected[0]]).addTo(map);
+            selectedMarker = new maplibregl.Marker({ element: createMarkerEl('selected', 'P') }).setLngLat([selected[1], selected[0]]).addTo(map);
           }
 
-          if (responders.length > 0 && roadRoute.length > 1) {
+          const setRoute = (coordinates) => {
+            if (!coordinates || coordinates.length <= 1) return;
+            if (map.getSource('trip-route')) {
+              map.getSource('trip-route').setData({
+                type: 'Feature',
+                geometry: { type: 'LineString', coordinates },
+                properties: {}
+              });
+              return;
+            }
             map.addSource('trip-route', {
               type: 'geojson',
               data: {
                 type: 'Feature',
                 geometry: {
                   type: 'LineString',
-                  coordinates: roadRoute
+                  coordinates
                 },
                 properties: {}
               }
@@ -417,7 +452,10 @@ function buildGalliHtml({
                 'line-opacity': 0.95
               }
             });
+          };
 
+          if (responders.length > 0 && roadRoute.length > 1) {
+            setRoute(roadRoute);
             const bounds = new maplibregl.LngLatBounds(user, user);
             responders.forEach((point) => bounds.extend(point));
             roadRoute.forEach((point) => bounds.extend(point));
@@ -436,6 +474,16 @@ function buildGalliHtml({
 
           setTimeout(() => map.resize(), 80);
           setTimeout(() => map.resize(), 300);
+
+          window.addEventListener('message', (event) => {
+            try {
+              const payload = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
+              if (payload?.type !== 'emergency-map-update') return;
+              if (payload.user && userMarker) userMarker.setLngLat([payload.user.longitude, payload.user.latitude]);
+              if (Array.isArray(payload.responders)) drawResponders(payload.responders.map((point) => [point.longitude, point.latitude]));
+              if (Array.isArray(payload.route) && payload.route.length > 1) setRoute(payload.route.map((point) => [point.longitude, point.latitude]));
+            } catch {}
+          });
         });
 
         map.on('error', () => {
@@ -443,8 +491,6 @@ function buildGalliHtml({
         });
 
         if (canSelectLocation) {
-          let selectedMarker = null;
-
           map.on('click', (event) => {
             if (selectedMarker) {
               selectedMarker.remove();
@@ -462,11 +508,51 @@ function buildGalliHtml({
 
 export function LeafletMap(props: LeafletMapProps) {
   const mapId = useMemo(() => `map-${Math.random().toString(36).slice(2)}`, []);
+  const webViewRef = useRef<WebView>(null);
+  const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const latestSelectHandler = useRef(props.onLocationSelect);
 
   latestSelectHandler.current = props.onLocationSelect;
 
-  const srcDoc = buildGalliHtml({ ...props, mapId }) || buildLeafletHtml({ ...props, mapId });
+  // The WebView document stays mounted; live changes are sent through postMessage below.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const srcDoc = useMemo(() => buildGalliHtml({ ...props, mapId }) || buildLeafletHtml({ ...props, mapId }), [mapId]);
+  const mapUpdatePayload = useMemo(() => {
+    const responders = (props.responderLocations && props.responderLocations.length > 0
+      ? props.responderLocations
+      : props.responderLocation
+        ? [{ location: props.responderLocation, label: props.responderLabel || 'Responder' }]
+        : []
+    )
+      .map((item) => {
+        const point = toPoint(item.location);
+
+        return point ? { ...point, label: item.label } : null;
+      })
+      .filter((item): item is { latitude: number; longitude: number; label: string } => Boolean(item));
+
+    return {
+      type: 'emergency-map-update',
+      user: toPoint(props.userLocation),
+      responders,
+      route: props.routeCoordinates?.map(toPoint).filter((point): point is { latitude: number; longitude: number } => Boolean(point)) || [],
+    };
+  }, [props.userLocation, props.responderLocation, props.responderLocations, props.responderLabel, props.routeCoordinates]);
+
+  useEffect(() => {
+    if (!srcDoc) {
+      return;
+    }
+
+    const payload = JSON.stringify(mapUpdatePayload);
+
+    if (Platform.OS !== 'web') {
+      webViewRef.current?.injectJavaScript(`window.dispatchEvent(new MessageEvent('message', { data: ${JSON.stringify(payload)} })); true;`);
+      return;
+    }
+
+    iframeRef.current?.contentWindow?.postMessage(payload, '*');
+  }, [mapUpdatePayload, srcDoc]);
 
   useEffect(() => {
     if (Platform.OS !== 'web' || !props.onLocationSelect) {
@@ -504,6 +590,7 @@ export function LeafletMap(props: LeafletMapProps) {
   if (Platform.OS !== 'web') {
     return (
       <WebView
+        ref={webViewRef}
         originWhitelist={['*']}
         source={{ html: srcDoc }}
         style={{ backgroundColor: '#eef6f7', height, width: '100%' }}
@@ -534,6 +621,7 @@ export function LeafletMap(props: LeafletMapProps) {
   }
 
   return React.createElement('iframe', {
+    ref: iframeRef,
     srcDoc,
     title: 'Emergency live route map',
     style: {

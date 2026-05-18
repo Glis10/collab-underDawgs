@@ -5,6 +5,7 @@ import { AppBottomNav } from '@/components/app-bottom-nav';
 import { useAppPreferences } from '@/src/lib/app-preferences';
 import { cancelEmergencyRequest, createEmergencyRequest, EmergencyRequest, getCurrentUser, getEmergencyRequests } from '@/src/lib/auth';
 import { getCurrentEmergencyLocation } from '@/src/lib/location';
+import { getEmergencySocket, SOCKET_EVENTS } from '@/src/lib/socket';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { Href, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
@@ -56,6 +57,44 @@ export default function DashboardScreen() {
 
   useEffect(() => {
     loadRequestHistory();
+  }, [loadRequestHistory]);
+
+  useEffect(() => {
+    const socket = getEmergencySocket();
+
+    if (!socket) {
+      return undefined;
+    }
+
+    const upsertHistory = (payload: { emergencyRequest?: EmergencyRequest }) => {
+      if (!payload.emergencyRequest?.id) {
+        loadRequestHistory();
+        return;
+      }
+
+      setRequestHistory((current) => {
+        const request = payload.emergencyRequest!;
+        const existingIndex = current.findIndex((item) => item.id === request.id || item.emergencyRequestId === request.id);
+
+        if (existingIndex === -1) {
+          return [request, ...current];
+        }
+
+        return current.map((item) => (item.id === request.id || item.emergencyRequestId === request.id ? { ...item, ...request } : item));
+      });
+    };
+
+    socket.on(SOCKET_EVENTS.newRequest, upsertHistory);
+    socket.on(SOCKET_EVENTS.requestAccepted, upsertHistory);
+    socket.on(SOCKET_EVENTS.requestDeclined, upsertHistory);
+    socket.on(SOCKET_EVENTS.requestStatusUpdated, upsertHistory);
+
+    return () => {
+      socket.off(SOCKET_EVENTS.newRequest, upsertHistory);
+      socket.off(SOCKET_EVENTS.requestAccepted, upsertHistory);
+      socket.off(SOCKET_EVENTS.requestDeclined, upsertHistory);
+      socket.off(SOCKET_EVENTS.requestStatusUpdated, upsertHistory);
+    };
   }, [loadRequestHistory]);
 
   const openService = (action: (typeof emergencyActions)[number]) => {

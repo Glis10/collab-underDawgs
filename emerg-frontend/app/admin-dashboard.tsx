@@ -1,6 +1,6 @@
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { Href, useRouter } from 'expo-router';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -30,6 +30,7 @@ import {
 } from '@/src/lib/auth';
 import { getOptionalCurrentEmergencyLocation, watchEmergencyLocation } from '@/src/lib/location';
 import { extractRouteCoordinates } from '@/src/lib/routes';
+import { getEmergencySocket, SOCKET_EVENTS } from '@/src/lib/socket';
 
 const RED = '#E63946';
 const NAVY = '#1A365D';
@@ -384,6 +385,12 @@ export default function AdminDashboardScreen() {
   const mapTargetLocation = assignedRequest?.requesterLocation || assignedRequest?.coordinates || null;
   const mapDistance = mapTargetLocation ? calculateDistanceKm(adminLocation, mapTargetLocation) : null;
   const mapEtaMinutes = mapDistance ? Math.max(2, Math.round((mapDistance / 24) * 60)) : null;
+  const routeRequestKey = useMemo(
+    () => assignedRequest && mapTargetLocation ? `${assignedRequest.id}:${mapTargetLocation.latitude},${mapTargetLocation.longitude}` : '',
+    // Route fetches are keyed by stable identifiers so GPS updates move only the marker.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [assignedRequest?.id, mapTargetLocation?.latitude, mapTargetLocation?.longitude]
+  );
 
   useEffect(() => {
     let isMounted = true;
@@ -418,7 +425,9 @@ export default function AdminDashboardScreen() {
     return () => {
       isMounted = false;
     };
-  }, [adminLocation.latitude, adminLocation.longitude, assignedRequest, mapTargetLocation]);
+  // Keep the route polyline stable while the driver's marker receives live GPS updates.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [routeRequestKey]);
 
   const loadAdminRequests = useCallback(async (silent = false) => {
     if (responderStatus === 'unavailable') {
@@ -455,9 +464,56 @@ export default function AdminDashboardScreen() {
 
     const intervalId = setInterval(() => {
       loadAdminRequests(true);
-    }, 15000);
+    }, 60000);
 
     return () => clearInterval(intervalId);
+  }, [loadAdminRequests, responderStatus]);
+
+  useEffect(() => {
+    if (responderStatus === 'unavailable') {
+      return undefined;
+    }
+
+    const socket = getEmergencySocket();
+
+    if (!socket) {
+      return undefined;
+    }
+
+    const mergeRequest = (incoming: AdminEmergencyRequest) => {
+      const nextRequest = toDashboardRequest(incoming);
+
+      setRequests((current) => {
+        const existingIndex = current.findIndex((request) => request.id === nextRequest.id);
+
+        if (existingIndex === -1) {
+          return [nextRequest, ...current];
+        }
+
+        return current.map((request) => (request.id === nextRequest.id ? nextRequest : request));
+      });
+    };
+
+    const refreshFromEvent = (payload: { emergencyRequest?: AdminEmergencyRequest }) => {
+      if (payload.emergencyRequest?.id && (payload.emergencyRequest.requester || payload.emergencyRequest.coordinates)) {
+        mergeRequest(payload.emergencyRequest);
+        return;
+      }
+
+      loadAdminRequests(true);
+    };
+
+    socket.on(SOCKET_EVENTS.newRequest, refreshFromEvent);
+    socket.on(SOCKET_EVENTS.requestAccepted, refreshFromEvent);
+    socket.on(SOCKET_EVENTS.requestDeclined, refreshFromEvent);
+    socket.on(SOCKET_EVENTS.requestStatusUpdated, refreshFromEvent);
+
+    return () => {
+      socket.off(SOCKET_EVENTS.newRequest, refreshFromEvent);
+      socket.off(SOCKET_EVENTS.requestAccepted, refreshFromEvent);
+      socket.off(SOCKET_EVENTS.requestDeclined, refreshFromEvent);
+      socket.off(SOCKET_EVENTS.requestStatusUpdated, refreshFromEvent);
+    };
   }, [loadAdminRequests, responderStatus]);
 
   useEffect(() => {

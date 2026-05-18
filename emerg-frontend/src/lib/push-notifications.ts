@@ -47,3 +47,15 @@ export async function registerCurrentDeviceForPushNotifications() {
   await registerNotificationToken(pushToken);
   return pushToken;
 }
+
+export function subscribeToNotificationResponses(onResponse?: (data: Record<string, unknown>) => void) {
+  const receivedSubscription = Notifications.addNotificationReceivedListener(() => undefined);
+  const responseSubscription = Notifications.addNotificationResponseReceivedListener((response) => {
+    onResponse?.(response.notification.request.content.data as Record<string, unknown>);
+  });
+
+  return () => {
+    receivedSubscription.remove();
+    responseSubscription.remove();
+  };
+}
