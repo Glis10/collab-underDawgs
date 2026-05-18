@@ -12,14 +12,16 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Href, useLocalSearchParams, useRouter } from 'expo-router';
+import { verifyRegistration } from '@/src/lib/auth';
 
 const OTP_LENGTH = 6;
 
 export default function OtpVerificationScreen() {
   const router = useRouter();
-  const { email, userId } = useLocalSearchParams<{ email?: string; userId?: string }>();
+  const { email, userId, mode } = useLocalSearchParams<{ email?: string; userId?: string; mode?: string }>();
   const [otp, setOtp] = useState<string[]>(Array(OTP_LENGTH).fill(''));
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const inputRefs = useRef<(TextInput | null)[]>([]);
 
   const handleOtpChange = (value: string, index: number) => {
@@ -65,9 +67,9 @@ export default function OtpVerificationScreen() {
     }
   };
 
-  const handleVerifyOtp = () => {
+  const handleVerifyOtp = async () => {
     if (!userId) {
-      Alert.alert('Missing reset details', 'Please request a new OTP and try again.');
+      Alert.alert('Missing verification details', 'Please request a new OTP and try again.');
       return;
     }
 
@@ -75,6 +77,20 @@ export default function OtpVerificationScreen() {
 
     if (otpToken.length !== OTP_LENGTH) {
       Alert.alert('Incomplete OTP', 'Please enter the full 6-digit OTP code.');
+      return;
+    }
+
+    if (mode === 'registration') {
+      try {
+        setIsSubmitting(true);
+        await verifyRegistration(userId, otpToken);
+        router.replace('/dashboard' as Href);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Unable to verify OTP right now.';
+        Alert.alert('Verification failed', message);
+      } finally {
+        setIsSubmitting(false);
+      }
       return;
     }
 
@@ -138,8 +154,8 @@ export default function OtpVerificationScreen() {
               ))}
             </View>
 
-            <TouchableOpacity style={styles.button} onPress={handleVerifyOtp}>
-              <Text style={styles.buttonText}>Verify OTP</Text>
+            <TouchableOpacity style={[styles.button, isSubmitting && styles.buttonDisabled]} onPress={handleVerifyOtp} disabled={isSubmitting}>
+              <Text style={styles.buttonText}>{isSubmitting ? 'Verifying...' : 'Verify OTP'}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.resendLinkContainer}>
@@ -254,6 +270,9 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
     marginBottom: 20,
+  },
+  buttonDisabled: {
+    opacity: 0.7,
   },
   buttonText: {
     color: '#FFFFFF',
