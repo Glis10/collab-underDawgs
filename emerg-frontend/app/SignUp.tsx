@@ -14,7 +14,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { registerUser } from '@/src/lib/auth';
+import { registerUser, sendRegistrationOtp } from '@/src/lib/auth';
 
 function isValidFullName(name: string) {
   return name.trim().split(/\s+/).filter(Boolean).length >= 2;
@@ -26,6 +26,8 @@ export default function SignUpScreen() {
   const [fullName, setFullName] = useState('');
   const [age, setAge] = useState('');
   const [email, setEmail] = useState('');
+  const [otp, setOtp] = useState('');
+  const [otpSentTo, setOtpSentTo] = useState('');
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
   const [password, setPassword] = useState('');
@@ -34,9 +36,43 @@ export default function SignUpScreen() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [agreeToTerms, setAgreeToTerms] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSendingOtp, setIsSendingOtp] = useState(false);
+
+  const handlePhoneChange = (value: string) => {
+    setPhone(value.replace(/\D/g, '').slice(0, 10));
+  };
+
+  const handleEmailChange = (value: string) => {
+    setEmail(value);
+    if (otpSentTo && value.trim().toLowerCase() !== otpSentTo.toLowerCase()) {
+      setOtpSentTo('');
+      setOtp('');
+    }
+  };
+
+  const handleSendOtp = async () => {
+    const nextEmail = email.trim();
+
+    if (!nextEmail) {
+      Alert.alert('Missing email', 'Please enter your email before requesting an OTP.');
+      return;
+    }
+
+    try {
+      setIsSendingOtp(true);
+      await sendRegistrationOtp(nextEmail);
+      setOtpSentTo(nextEmail);
+      Alert.alert('OTP sent', 'Please check your email and enter the OTP before signing up.');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to send OTP right now.';
+      Alert.alert('OTP failed', message);
+    } finally {
+      setIsSendingOtp(false);
+    }
+  };
 
   const handleSignUp = async () => {
-    if (!fullName.trim() || !age.trim() || !email.trim() || !phone.trim() || !address.trim() || !password || !confirmPassword) {
+    if (!fullName.trim() || !age.trim() || !email.trim() || !phone.trim() || !address.trim() || !password || !confirmPassword || !otp.trim()) {
       Alert.alert('Missing fields', 'Please fill in all the signup fields.');
       return;
     }
@@ -58,6 +94,11 @@ export default function SignUpScreen() {
       return;
     }
 
+    if (email.trim().toLowerCase() !== otpSentTo.toLowerCase()) {
+      Alert.alert('Email OTP required', 'Please send an OTP to this email before signing up.');
+      return;
+    }
+
     if (password !== confirmPassword) {
       Alert.alert('Password mismatch', 'Password and confirm password must match.');
       return;
@@ -72,23 +113,17 @@ export default function SignUpScreen() {
 
     try {
       setIsSubmitting(true);
-      const response = await registerUser({
+      await registerUser({
         name: fullName.trim(),
         age: numericAge,
         email: email.trim(),
         phoneNumber: normalizedPhone,
         primaryAddress: address.trim(),
         password,
+        otpToken: otp.trim(),
       });
 
-      router.push({
-        pathname: '/OtpVerification',
-        params: {
-          email: email.trim(),
-          userId: response.userId,
-          mode: 'registration',
-        },
-      });
+      router.replace('/dashboard');
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to sign up right now.';
       Alert.alert('Sign up failed', message);
@@ -145,7 +180,27 @@ export default function SignUpScreen() {
               keyboardType="email-address"
               autoCapitalize="none"
               value={email}
-              onChangeText={setEmail}
+              onChangeText={handleEmailChange}
+            />
+            <TouchableOpacity style={[styles.otpButton, isSendingOtp && styles.buttonDisabled]} onPress={handleSendOtp} disabled={isSendingOtp}>
+              {isSendingOtp ? (
+                <ActivityIndicator color="#FFFFFF" size="small" />
+              ) : (
+                <Text style={styles.otpButtonText}>Send OTP</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+
+          <Text style={styles.label}>Email OTP</Text>
+          <View style={styles.inputContainer}>
+            <MaterialCommunityIcons name="shield-check" size={20} color="#718096" />
+            <TextInput
+              style={styles.input}
+              placeholder="Enter OTP sent to your email"
+              keyboardType="number-pad"
+              value={otp}
+              onChangeText={(value) => setOtp(value.replace(/\D/g, '').slice(0, 6))}
+              maxLength={6}
             />
           </View>
 
@@ -157,7 +212,8 @@ export default function SignUpScreen() {
               placeholder="Enter phone number"
               keyboardType="phone-pad"
               value={phone}
-              onChangeText={setPhone}
+              onChangeText={handlePhoneChange}
+              maxLength={10}
             />
           </View>
 
@@ -310,6 +366,21 @@ const styles = StyleSheet.create({
     height: '100%',
     color: '#2D3748',
     fontSize: 16,
+  },
+  otpButton: {
+    minWidth: 88,
+    height: 36,
+    borderRadius: 8,
+    backgroundColor: '#E63946',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 8,
+    paddingHorizontal: 10,
+  },
+  otpButtonText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
   },
   passwordCriteria: {
     marginTop: 4,
