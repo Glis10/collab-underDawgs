@@ -340,6 +340,10 @@ export function getCurrentUser() {
   return currentUser;
 }
 
+export function getAuthToken() {
+  return authToken;
+}
+
 export function getAuthRevision() {
   return authRevision;
 }

@@ -27,6 +27,7 @@ import {
 } from '@/src/lib/auth';
 import { getOptionalCurrentEmergencyLocation } from '@/src/lib/location';
 import { extractRouteCoordinates } from '@/src/lib/routes';
+import { getEmergencySocket, SOCKET_EVENTS } from '@/src/lib/socket';
 
 const RED = '#E63946';
 const NAVY = '#1A365D';
@@ -116,11 +117,70 @@ export function TrackRequestContent({ bottomSpacer = 96, onGoHome }: TrackReques
     };
 
     refreshTracking();
-    const intervalId = setInterval(refreshTracking, 5000);
+    const intervalId = setInterval(refreshTracking, 30000);
 
     return () => {
       isMounted = false;
       clearInterval(intervalId);
+    };
+  }, []);
+
+  useEffect(() => {
+    const socket = getEmergencySocket();
+
+    if (!socket) {
+      return undefined;
+    }
+
+    const refreshFromSocket = () => {
+      getEmergencyRequests()
+        .then(async (requests) => {
+          const nextActiveRequests = requests.filter((request) => activeStatuses.includes(request.requestStatus || request.status || 'pending'));
+          const nextActiveRequest = nextActiveRequests.find((request) => (request.requestStatus || request.status) !== 'pending') || nextActiveRequests[0] || null;
+          const requestIds = nextActiveRequests.map((request) => request.emergencyRequestId || request.id).filter(Boolean);
+
+          setActiveRequests(nextActiveRequests);
+          setActiveRequest(nextActiveRequest);
+
+          if (requestIds.length === 0) {
+            setTrackingDetails(null);
+            setTrackingDetailsList([]);
+            return;
+          }
+
+          const detailsList = await Promise.all(requestIds.map((requestId) => getEmergencyRequestDetails(requestId)));
+          setTrackingDetails(detailsList.find((details) => details.requestStatus !== 'pending') || detailsList[0]);
+          setTrackingDetailsList(detailsList);
+        })
+        .catch(() => undefined);
+    };
+
+    const updateProviderLocation = (payload: { location?: EmergencyLocation }) => {
+      if (!payload.location?.latitude || !payload.location.longitude) {
+        return;
+      }
+
+      setTrackingDetailsList((current) =>
+        current.map((details, index) =>
+          index === 0 && details.responderDetails
+            ? { ...details, responderDetails: { ...details.responderDetails, currentLocation: payload.location } }
+            : details
+        )
+      );
+    };
+
+    socket.on(SOCKET_EVENTS.newRequest, refreshFromSocket);
+    socket.on(SOCKET_EVENTS.requestAccepted, refreshFromSocket);
+    socket.on(SOCKET_EVENTS.requestDeclined, refreshFromSocket);
+    socket.on(SOCKET_EVENTS.requestStatusUpdated, refreshFromSocket);
+    socket.on(SOCKET_EVENTS.providerLocationUpdated, updateProviderLocation);
+
+    return () => {
+      socket.off(SOCKET_EVENTS.newRequest, refreshFromSocket);
+      socket.off(SOCKET_EVENTS.requestAccepted, refreshFromSocket);
+      socket.off(SOCKET_EVENTS.requestDeclined, refreshFromSocket);
+      socket.off(SOCKET_EVENTS.requestStatusUpdated, refreshFromSocket);
+      socket.off(SOCKET_EVENTS.providerLocationUpdated, updateProviderLocation);
     };
   }, []);
 
@@ -141,6 +201,9 @@ export function TrackRequestContent({ bottomSpacer = 96, onGoHome }: TrackReques
   const routeDistance = responderLocation ? calculateDistanceKm(responderLocation, userLocation) : null;
   const etaMinutes = routeDistance ? Math.max(2, Math.round((routeDistance / 24) * 60)) : null;
   const mapHeight = isSheetExpanded ? 420 : 640;
+  const routeKey = isAccepted && responderLocation
+    ? `${activeRequest?.emergencyRequestId || activeRequest?.id}:${userLocation.latitude},${userLocation.longitude}`
+    : '';
   const sheetPanResponder = useMemo(
     () =>
       PanResponder.create({
@@ -199,7 +262,7 @@ export function TrackRequestContent({ bottomSpacer = 96, onGoHome }: TrackReques
           setRoadRoute(extractRouteCoordinates(route));
         }
       } catch {
-        if (isMounted) {
+        if (isMounted && roadRoute.length === 0) {
           setRoadRoute([]);
         }
       }
@@ -210,7 +273,9 @@ export function TrackRequestContent({ bottomSpacer = 96, onGoHome }: TrackReques
     return () => {
       isMounted = false;
     };
-  }, [isAccepted, responderLocation, userLocation.latitude, userLocation.longitude]);
+  // Keep the fetched road route stable during live marker-only location updates.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [routeKey]);
 
   const providerDetails: ProviderDetail[] = [
     { label: t('responders'), value: responderLocations.length > 0 ? `${responderLocations.length}/${isSosRequest(activeRequests) ? 3 : 1}` : t('waiting'), icon: 'account-hard-hat' },

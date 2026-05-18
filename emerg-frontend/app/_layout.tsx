@@ -4,6 +4,7 @@ import { AppPreferencesProvider } from '@/src/lib/app-preferences';
 import { ExitConfirmation } from '@/components/exit-confirmation';
 import { AiChatAssistant } from '@/components/ai-chat-assistant';
 import { getAuthRevision, getCurrentUser, subscribeAuthChanges } from '@/src/lib/auth';
+import { subscribeToNotificationResponses } from '@/src/lib/push-notifications';
 
 const stackScreenOptions = {
   headerShown: false,
@@ -20,6 +21,7 @@ export default function RootLayout() {
   const showAssistant = isUserSideRoute && currentUser?.role !== 'admin';
 
   useEffect(() => subscribeAuthChanges(() => setAuthRevision(getAuthRevision())), []);
+  useEffect(() => subscribeToNotificationResponses(), []);
 
   return (
     <AppPreferencesProvider>
