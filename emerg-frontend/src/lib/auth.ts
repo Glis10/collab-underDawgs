@@ -141,6 +141,9 @@ export type AdminEmergencyRequest = {
     phoneNumber?: string;
     currentLocation?: EmergencyLocation | null;
   } | null;
+  responder?: {
+    serviceProviderId?: string;
+  } | null;
   tracking?: {
     requestedAt?: string;
     approvedAt?: string | null;
@@ -167,6 +170,12 @@ type EmergencyRequestInput = {
   emergencyDescription: string;
   userLocation: EmergencyLocation;
   locationSource?: 'auto' | 'manual';
+};
+
+type FeedbackInput = {
+  serviceProviderId: string;
+  message?: string;
+  serviceRatings?: number;
 };
 
 export const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL;
@@ -498,6 +507,18 @@ export async function cancelEmergencyRequest(id: string): Promise<EmergencyReque
     headers: {
       Authorization: `Bearer ${token}`,
     },
+  });
+}
+
+export async function createFeedback(input: FeedbackInput): Promise<{ feedback: unknown }> {
+  const token = requireAuthToken('Please sign in again before sharing feedback.');
+
+  return apiRequest<{ feedback: unknown }>('/v1/feedback', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(input),
   });
 }
 

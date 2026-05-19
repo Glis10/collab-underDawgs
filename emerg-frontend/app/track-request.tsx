@@ -7,6 +7,7 @@ import {
   PanResponder,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -20,6 +21,7 @@ import {
   EmergencyLocation,
   EmergencyRequest,
   EmergencyTrackingDetails,
+  createFeedback,
   getEmergencyRequestDetails,
   getEmergencyRequests,
   getOptimalRoute,
@@ -58,12 +60,17 @@ export function TrackRequestContent({ bottomSpacer = 96, onGoHome }: TrackReques
   const { darkMode, t } = useAppPreferences();
   const [activeRequest, setActiveRequest] = useState<EmergencyRequest | null>(null);
   const [activeRequests, setActiveRequests] = useState<EmergencyRequest[]>([]);
+  const [completedRequest, setCompletedRequest] = useState<EmergencyRequest | null>(null);
+  const [completedDetails, setCompletedDetails] = useState<EmergencyTrackingDetails | null>(null);
   const [trackingDetails, setTrackingDetails] = useState<EmergencyTrackingDetails | null>(null);
   const [trackingDetailsList, setTrackingDetailsList] = useState<EmergencyTrackingDetails[]>([]);
   const [userLocation, setUserLocation] = useState<EmergencyLocation>(fallbackUserLocation);
   const [roadRoute, setRoadRoute] = useState<EmergencyLocation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSheetExpanded, setIsSheetExpanded] = useState(true);
+  const [feedbackComment, setFeedbackComment] = useState('');
+  const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
+  const [dismissedFeedbackIds, setDismissedFeedbackIds] = useState<string[]>([]);
 
   useEffect(() => {
     let isMounted = true;
@@ -79,10 +86,16 @@ export function TrackRequestContent({ bottomSpacer = 96, onGoHome }: TrackReques
         const requests = await getEmergencyRequests();
         const nextActiveRequests = requests.filter((request) => activeStatuses.includes(request.requestStatus || request.status || 'pending'));
         const nextActiveRequest = nextActiveRequests.find((request) => (request.requestStatus || request.status) !== 'pending') || nextActiveRequests[0] || null;
+        const nextCompletedRequest = requests.find((request) => {
+          const requestId = request.emergencyRequestId || request.id;
+
+          return (request.requestStatus || request.status) === 'completed' && !dismissedFeedbackIds.includes(requestId);
+        }) || null;
 
         if (isMounted) {
           setActiveRequests(nextActiveRequests);
           setActiveRequest(nextActiveRequest);
+          setCompletedRequest(nextCompletedRequest);
           if (!nextActiveRequest) {
             setTrackingDetails(null);
             setTrackingDetailsList([]);
@@ -105,6 +118,18 @@ export function TrackRequestContent({ bottomSpacer = 96, onGoHome }: TrackReques
         } else if (isMounted && liveLocation) {
           setUserLocation(liveLocation);
         }
+
+        const completedRequestId = nextCompletedRequest?.emergencyRequestId || nextCompletedRequest?.id;
+
+        if (completedRequestId) {
+          const details = await getEmergencyRequestDetails(completedRequestId);
+
+          if (isMounted) {
+            setCompletedDetails(details);
+          }
+        } else if (isMounted) {
+          setCompletedDetails(null);
+        }
       } catch {
         if (isMounted) {
           setTrackingDetails(null);
@@ -123,7 +148,7 @@ export function TrackRequestContent({ bottomSpacer = 96, onGoHome }: TrackReques
       isMounted = false;
       clearInterval(intervalId);
     };
-  }, []);
+  }, [dismissedFeedbackIds]);
 
   useEffect(() => {
     const socket = getEmergencySocket();
@@ -137,10 +162,26 @@ export function TrackRequestContent({ bottomSpacer = 96, onGoHome }: TrackReques
         .then(async (requests) => {
           const nextActiveRequests = requests.filter((request) => activeStatuses.includes(request.requestStatus || request.status || 'pending'));
           const nextActiveRequest = nextActiveRequests.find((request) => (request.requestStatus || request.status) !== 'pending') || nextActiveRequests[0] || null;
+          const nextCompletedRequest = requests.find((request) => {
+            const requestId = request.emergencyRequestId || request.id;
+
+            return (request.requestStatus || request.status) === 'completed' && !dismissedFeedbackIds.includes(requestId);
+          }) || null;
           const requestIds = nextActiveRequests.map((request) => request.emergencyRequestId || request.id).filter(Boolean);
 
           setActiveRequests(nextActiveRequests);
           setActiveRequest(nextActiveRequest);
+          setCompletedRequest(nextCompletedRequest);
+
+          const completedRequestId = nextCompletedRequest?.emergencyRequestId || nextCompletedRequest?.id;
+
+          if (completedRequestId) {
+            getEmergencyRequestDetails(completedRequestId)
+              .then(setCompletedDetails)
+              .catch(() => setCompletedDetails(null));
+          } else {
+            setCompletedDetails(null);
+          }
 
           if (requestIds.length === 0) {
             setTrackingDetails(null);
@@ -182,7 +223,7 @@ export function TrackRequestContent({ bottomSpacer = 96, onGoHome }: TrackReques
       socket.off(SOCKET_EVENTS.requestStatusUpdated, refreshFromSocket);
       socket.off(SOCKET_EVENTS.providerLocationUpdated, updateProviderLocation);
     };
-  }, []);
+  }, [dismissedFeedbackIds]);
 
   const responderLocations = trackingDetailsList
     .filter((details) => details.requestStatus === 'approved' || details.requestStatus === 'assigned' || details.requestStatus === 'in_progress')
@@ -240,6 +281,47 @@ export function TrackRequestContent({ bottomSpacer = 96, onGoHome }: TrackReques
     Linking.openURL(url);
   };
 
+  const handleDismissFeedback = () => {
+    const requestId = completedRequest?.emergencyRequestId || completedRequest?.id;
+
+    if (requestId) {
+      setDismissedFeedbackIds((current) => [...new Set([...current, requestId])]);
+    }
+
+    setFeedbackComment('');
+    setCompletedRequest(null);
+    setCompletedDetails(null);
+  };
+
+  const handleSubmitFeedback = async () => {
+    const message = feedbackComment.trim();
+    const serviceProviderId = completedDetails?.responderDetails?.id || completedDetails?.responder?.serviceProviderId;
+
+    if (!message) {
+      handleDismissFeedback();
+      return;
+    }
+
+    if (!serviceProviderId) {
+      Alert.alert('Feedback unavailable', 'Responder details are not available for this completed request yet.');
+      return;
+    }
+
+    try {
+      setIsSubmittingFeedback(true);
+      await createFeedback({
+        serviceProviderId,
+        message,
+      });
+      Alert.alert('Feedback sent', 'Thank you for sharing your comment.');
+      handleDismissFeedback();
+    } catch (error) {
+      Alert.alert('Could not send feedback', error instanceof Error ? error.message : 'Please try again.');
+    } finally {
+      setIsSubmittingFeedback(false);
+    }
+  };
+
   useEffect(() => {
     let isMounted = true;
 
@@ -288,6 +370,39 @@ export function TrackRequestContent({ bottomSpacer = 96, onGoHome }: TrackReques
       <View style={styles.centerState}>
         <ActivityIndicator color={RED} />
         <Text style={styles.centerStateText}>{t('checkingRequests')}</Text>
+      </View>
+    );
+  }
+
+  if (!activeRequest && completedRequest) {
+    return (
+      <View style={styles.centerState}>
+        <View style={[styles.emptyIcon, darkMode && styles.cardDark]}>
+          <MaterialCommunityIcons name="check-circle-outline" size={36} color={GREEN} />
+        </View>
+        <Text style={[styles.emptyTitle, darkMode && styles.textDark]}>Request completed</Text>
+        <Text style={styles.emptySubtitle}>You can leave a short feedback comment, or skip this step.</Text>
+        <TextInput
+          style={[styles.feedbackInput, darkMode && styles.feedbackInputDark]}
+          value={feedbackComment}
+          onChangeText={setFeedbackComment}
+          placeholder="Add a comment"
+          placeholderTextColor={FAINT}
+          multiline
+          textAlignVertical="top"
+        />
+        <View style={styles.feedbackActions}>
+          <TouchableOpacity style={styles.skipFeedbackButton} activeOpacity={0.8} onPress={handleDismissFeedback} disabled={isSubmittingFeedback}>
+            <Text style={styles.skipFeedbackText}>Skip</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.submitFeedbackButton} activeOpacity={0.8} onPress={handleSubmitFeedback} disabled={isSubmittingFeedback}>
+            {isSubmittingFeedback ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.submitFeedbackText}>Submit</Text>}
+          </TouchableOpacity>
+        </View>
+        <TouchableOpacity style={styles.primaryWideAction} activeOpacity={0.8} onPress={onGoHome ?? (() => router.replace(dashboardRoute))}>
+          <Ionicons name="home-outline" size={18} color="#FFFFFF" />
+          <Text style={styles.primaryActionText}>{t('home')}</Text>
+        </TouchableOpacity>
       </View>
     );
   }
@@ -525,6 +640,59 @@ const styles = StyleSheet.create({
     marginTop: 8,
     maxWidth: 320,
     textAlign: 'center',
+  },
+  feedbackInput: {
+    backgroundColor: '#FFFFFF',
+    borderColor: BORDER,
+    borderRadius: 8,
+    borderWidth: 1,
+    color: NAVY,
+    fontSize: 14,
+    fontWeight: '700',
+    lineHeight: 20,
+    marginTop: 18,
+    minHeight: 110,
+    padding: 12,
+    width: '100%',
+  },
+  feedbackInputDark: {
+    backgroundColor: '#121212',
+    borderColor: '#2A2A2A',
+    color: '#F9FAFB',
+  },
+  feedbackActions: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 12,
+    width: '100%',
+  },
+  skipFeedbackButton: {
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderColor: BORDER,
+    borderRadius: 8,
+    borderWidth: 1,
+    flex: 1,
+    height: 48,
+    justifyContent: 'center',
+  },
+  skipFeedbackText: {
+    color: MUTED,
+    fontSize: 14,
+    fontWeight: '900',
+  },
+  submitFeedbackButton: {
+    alignItems: 'center',
+    backgroundColor: RED,
+    borderRadius: 8,
+    flex: 1,
+    height: 48,
+    justifyContent: 'center',
+  },
+  submitFeedbackText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '900',
   },
   mapCanvas: {
     backgroundColor: '#EEF6F7',
