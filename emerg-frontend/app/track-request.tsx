@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -43,6 +43,7 @@ const dashboardRoute = '/dashboard' as Href;
 const fallbackUserLocation = { latitude: '27.7112', longitude: '85.3388' };
 
 const activeStatuses = ['pending', 'approved', 'assigned', 'in_progress'];
+const dismissedFeedbackRequestIds = new Set<string>();
 
 type ProviderDetail = {
   label: string;
@@ -54,6 +55,31 @@ type TrackRequestContentProps = {
   bottomSpacer?: number;
   onGoHome?: () => void;
 };
+
+function getRequestId(request: EmergencyRequest) {
+  return request.emergencyRequestId || request.id;
+}
+
+function getRequestTimestamp(request: EmergencyRequest) {
+  const value = request.updatedAt || request.arrivalTime || request.dispatchTime || request.requestTime || request.createdAt || '';
+  const timestamp = Date.parse(value);
+
+  return Number.isNaN(timestamp) ? 0 : timestamp;
+}
+
+function getCompletedFeedbackRequest(requests: EmergencyRequest[], dismissedIds: Set<string>) {
+  const latestCompletedRequest = requests
+    .filter((request) => (request.requestStatus || request.status) === 'completed')
+    .sort((left, right) => getRequestTimestamp(right) - getRequestTimestamp(left))[0] || null;
+
+  if (!latestCompletedRequest) {
+    return null;
+  }
+
+  const requestId = getRequestId(latestCompletedRequest);
+
+  return dismissedIds.has(requestId) ? null : latestCompletedRequest;
+}
 
 export function TrackRequestContent({ bottomSpacer = 96, onGoHome }: TrackRequestContentProps) {
   const router = useRouter();
@@ -69,8 +95,10 @@ export function TrackRequestContent({ bottomSpacer = 96, onGoHome }: TrackReques
   const [isLoading, setIsLoading] = useState(true);
   const [isSheetExpanded, setIsSheetExpanded] = useState(true);
   const [feedbackComment, setFeedbackComment] = useState('');
+  const [isFeedbackFormVisible, setIsFeedbackFormVisible] = useState(false);
   const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
-  const [dismissedFeedbackIds, setDismissedFeedbackIds] = useState<string[]>([]);
+  const [dismissedFeedbackIds, setDismissedFeedbackIds] = useState<string[]>(() => [...dismissedFeedbackRequestIds]);
+  const dismissedFeedbackIdsRef = useRef(dismissedFeedbackRequestIds);
 
   useEffect(() => {
     let isMounted = true;
@@ -86,11 +114,7 @@ export function TrackRequestContent({ bottomSpacer = 96, onGoHome }: TrackReques
         const requests = await getEmergencyRequests();
         const nextActiveRequests = requests.filter((request) => activeStatuses.includes(request.requestStatus || request.status || 'pending'));
         const nextActiveRequest = nextActiveRequests.find((request) => (request.requestStatus || request.status) !== 'pending') || nextActiveRequests[0] || null;
-        const nextCompletedRequest = requests.find((request) => {
-          const requestId = request.emergencyRequestId || request.id;
-
-          return (request.requestStatus || request.status) === 'completed' && !dismissedFeedbackIds.includes(requestId);
-        }) || null;
+        const nextCompletedRequest = getCompletedFeedbackRequest(requests, dismissedFeedbackIdsRef.current);
 
         if (isMounted) {
           setActiveRequests(nextActiveRequests);
@@ -162,11 +186,7 @@ export function TrackRequestContent({ bottomSpacer = 96, onGoHome }: TrackReques
         .then(async (requests) => {
           const nextActiveRequests = requests.filter((request) => activeStatuses.includes(request.requestStatus || request.status || 'pending'));
           const nextActiveRequest = nextActiveRequests.find((request) => (request.requestStatus || request.status) !== 'pending') || nextActiveRequests[0] || null;
-          const nextCompletedRequest = requests.find((request) => {
-            const requestId = request.emergencyRequestId || request.id;
-
-            return (request.requestStatus || request.status) === 'completed' && !dismissedFeedbackIds.includes(requestId);
-          }) || null;
+          const nextCompletedRequest = getCompletedFeedbackRequest(requests, dismissedFeedbackIdsRef.current);
           const requestIds = nextActiveRequests.map((request) => request.emergencyRequestId || request.id).filter(Boolean);
 
           setActiveRequests(nextActiveRequests);
@@ -245,6 +265,7 @@ export function TrackRequestContent({ bottomSpacer = 96, onGoHome }: TrackReques
   const routeKey = isAccepted && responderLocation
     ? `${activeRequest?.emergencyRequestId || activeRequest?.id}:${userLocation.latitude},${userLocation.longitude}`
     : '';
+  const completedFeedbackRequestId = completedRequest ? getRequestId(completedRequest) : '';
   const sheetPanResponder = useMemo(
     () =>
       PanResponder.create({
@@ -261,6 +282,11 @@ export function TrackRequestContent({ bottomSpacer = 96, onGoHome }: TrackReques
       }),
     []
   );
+
+  useEffect(() => {
+    setIsFeedbackFormVisible(false);
+    setFeedbackComment('');
+  }, [completedFeedbackRequestId]);
 
   const handleCallResponder = async () => {
     const phoneNumber = responderPhoneNumber.replace(/[^\d+]/g, '');
@@ -282,13 +308,15 @@ export function TrackRequestContent({ bottomSpacer = 96, onGoHome }: TrackReques
   };
 
   const handleDismissFeedback = () => {
-    const requestId = completedRequest?.emergencyRequestId || completedRequest?.id;
+    const requestId = completedRequest ? getRequestId(completedRequest) : '';
 
     if (requestId) {
-      setDismissedFeedbackIds((current) => [...new Set([...current, requestId])]);
+      dismissedFeedbackIdsRef.current.add(requestId);
+      setDismissedFeedbackIds([...dismissedFeedbackIdsRef.current]);
     }
 
     setFeedbackComment('');
+    setIsFeedbackFormVisible(false);
     setCompletedRequest(null);
     setCompletedDetails(null);
   };
@@ -298,7 +326,7 @@ export function TrackRequestContent({ bottomSpacer = 96, onGoHome }: TrackReques
     const serviceProviderId = completedDetails?.responderDetails?.id || completedDetails?.responder?.serviceProviderId;
 
     if (!message) {
-      handleDismissFeedback();
+      Alert.alert('Feedback required', 'Please write a short message before submitting feedback.');
       return;
     }
 
@@ -382,23 +410,31 @@ export function TrackRequestContent({ bottomSpacer = 96, onGoHome }: TrackReques
         </View>
         <Text style={[styles.emptyTitle, darkMode && styles.textDark]}>Request completed</Text>
         <Text style={styles.emptySubtitle}>You can leave a short feedback comment, or skip this step.</Text>
-        <TextInput
-          style={[styles.feedbackInput, darkMode && styles.feedbackInputDark]}
-          value={feedbackComment}
-          onChangeText={setFeedbackComment}
-          placeholder="Add a comment"
-          placeholderTextColor={FAINT}
-          multiline
-          textAlignVertical="top"
-        />
-        <View style={styles.feedbackActions}>
-          <TouchableOpacity style={styles.skipFeedbackButton} activeOpacity={0.8} onPress={handleDismissFeedback} disabled={isSubmittingFeedback}>
-            <Text style={styles.skipFeedbackText}>Skip</Text>
+        {isFeedbackFormVisible ? (
+          <>
+            <TextInput
+              style={[styles.feedbackInput, darkMode && styles.feedbackInputDark]}
+              value={feedbackComment}
+              onChangeText={setFeedbackComment}
+              placeholder="Add a comment"
+              placeholderTextColor={FAINT}
+              multiline
+              textAlignVertical="top"
+            />
+            <View style={styles.feedbackActions}>
+              <TouchableOpacity style={styles.skipFeedbackButton} activeOpacity={0.8} onPress={handleDismissFeedback} disabled={isSubmittingFeedback}>
+                <Text style={styles.skipFeedbackText}>Skip</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.submitFeedbackButton} activeOpacity={0.8} onPress={handleSubmitFeedback} disabled={isSubmittingFeedback}>
+                {isSubmittingFeedback ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.submitFeedbackText}>Submit</Text>}
+              </TouchableOpacity>
+            </View>
+          </>
+        ) : (
+          <TouchableOpacity style={styles.feedbackCtaButton} activeOpacity={0.8} onPress={() => setIsFeedbackFormVisible(true)}>
+            <Text style={styles.submitFeedbackText}>Leave Feedback</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.submitFeedbackButton} activeOpacity={0.8} onPress={handleSubmitFeedback} disabled={isSubmittingFeedback}>
-            {isSubmittingFeedback ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.submitFeedbackText}>Submit</Text>}
-          </TouchableOpacity>
-        </View>
+        )}
         <TouchableOpacity style={styles.primaryWideAction} activeOpacity={0.8} onPress={onGoHome ?? (() => router.replace(dashboardRoute))}>
           <Ionicons name="home-outline" size={18} color="#FFFFFF" />
           <Text style={styles.primaryActionText}>{t('home')}</Text>
@@ -688,6 +724,15 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 48,
     justifyContent: 'center',
+  },
+  feedbackCtaButton: {
+    alignItems: 'center',
+    backgroundColor: RED,
+    borderRadius: 8,
+    height: 48,
+    justifyContent: 'center',
+    marginTop: 18,
+    width: '100%',
   },
   submitFeedbackText: {
     color: '#FFFFFF',
