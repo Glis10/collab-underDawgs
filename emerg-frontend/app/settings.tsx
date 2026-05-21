@@ -1,6 +1,6 @@
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { Href, useFocusEffect, useNavigation, useRouter } from 'expo-router';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect } from 'react';
 import {
   Alert,
   BackHandler,
@@ -72,7 +72,6 @@ export function SettingsContent({ bottomSpacer = 96 }: SettingsContentProps) {
   const navigation = useNavigation();
   const currentUser = getCurrentUser();
   const { darkMode, language, setDarkMode, setLanguage, t } = useAppPreferences();
-  const [notifications, setNotifications] = useState(true);
 
   const displayName = currentUser?.name || 'User';
   const displayEmail = currentUser?.email || 'teacher@heraldcollege.np';
@@ -158,15 +157,6 @@ export function SettingsContent({ bottomSpacer = 96 }: SettingsContentProps) {
             value={darkMode}
             onValueChange={setDarkMode}
           />
-          <SettingRow
-            icon="notifications"
-            label={t('notifications')}
-            value={notifications}
-            onValueChange={setNotifications}
-          />
-
-          <View style={styles.sectionGapSmall} />
-
           <Text style={[styles.sectionTitle, darkMode && styles.textDark]}>{t('language')}</Text>
           <View style={styles.settingRow}>
             <View style={styles.settingLabelWrap}>

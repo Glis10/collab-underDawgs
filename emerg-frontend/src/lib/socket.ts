@@ -7,11 +7,15 @@ export const SOCKET_EVENTS = {
   requestDeclined: 'request_declined',
   requestStatusUpdated: 'request_status_updated',
   providerLocationUpdated: 'provider_location_updated',
+  updateLocation: 'updateLocation',
+  updateUserLocation: 'updateUserLocation',
   emergencyResponseCreated: 'emergencyResponseCreated',
   emergencyResponseStatusUpdated: 'emergencyResponseStatusUpdated',
   receiveAlert: 'receiveAlert',
   joinEmergencyRoom: 'joinEmergencyRoom',
   sendLocation: 'sendLocation',
+  sendUserLocation: 'sendUserLocation',
+  locationUpdate: 'locationUpdate',
 } as const;
 
 let socket: Socket | null = null;

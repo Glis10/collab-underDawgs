@@ -220,7 +220,7 @@ Challenges I Faced
 4. Chatbot visibility after login
    - The chatbot originally depended on a simple current user variable.
    - React did not always re-render after login.
-   - I added auth change notification so the layout knows when login/logout happens.
+   - I added an auth change listener so the layout knows when login/logout happens.
 
 5. Making the chatbot movable
    - The first draggable version did not work properly because touch events were affected by Pressable.

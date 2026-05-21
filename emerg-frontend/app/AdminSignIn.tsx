@@ -4,7 +4,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Href, useRouter } from 'expo-router';
 import { loginUser } from '@/src/lib/auth';
-import { registerCurrentDeviceForPushNotifications } from '@/src/lib/push-notifications';
 
 const adminDashboardRoute = '/admin-dashboard' as Href;
 
@@ -34,7 +33,6 @@ export default function AdminSignInScreen() {
         return;
       }
 
-      registerCurrentDeviceForPushNotifications().catch(() => undefined);
       router.replace(adminDashboardRoute);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to sign in right now.';

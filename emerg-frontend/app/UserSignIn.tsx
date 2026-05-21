@@ -5,7 +5,6 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFonts, MontaguSlab_400Regular } from '@expo-google-fonts/montagu-slab';
 import { Href, useRouter } from 'expo-router'; // <-- The new way!
 import { loginUser } from '@/src/lib/auth';
-import { registerCurrentDeviceForPushNotifications } from '@/src/lib/push-notifications';
 
 const dashboardRoute = '/dashboard' as Href;
 
@@ -36,7 +35,6 @@ export default function UserSignInScreen() {
         phoneNumber: phoneNumber.trim(),
         password,
       });
-      registerCurrentDeviceForPushNotifications().catch(() => undefined);
 
       router.replace(dashboardRoute);
     } catch (error) {

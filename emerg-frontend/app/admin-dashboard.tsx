@@ -80,7 +80,6 @@ type AdminTextKey =
   | 'editName'
   | 'preference'
   | 'darkMode'
-  | 'notifications'
   | 'language'
   | 'english'
   | 'nepali'
@@ -164,7 +163,6 @@ const text: Record<'en' | 'ne', Record<AdminTextKey, string>> = {
     editName: 'Edit Name',
     preference: 'Preference',
     darkMode: 'Dark Mode',
-    notifications: 'Notifications',
     language: 'Language',
     english: 'English',
     nepali: 'Nepali',
@@ -220,7 +218,6 @@ const text: Record<'en' | 'ne', Record<AdminTextKey, string>> = {
     editName: 'नाम सम्पादन',
     preference: 'प्राथमिकता',
     darkMode: 'डार्क मोड',
-    notifications: 'सूचना',
     language: 'भाषा',
     english: 'अङ्ग्रेजी',
     nepali: 'नेपाली',
@@ -369,7 +366,6 @@ export default function AdminDashboardScreen() {
   const [responderStatus, setResponderStatus] = useState<ResponderStatus>('available');
   const [isLoadingRequests, setIsLoadingRequests] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState<DashboardEmergencyRequest | null>(null);
-  const [notifications, setNotifications] = useState(true);
   const [adminLocation, setAdminLocation] = useState(currentUser?.currentLocation || fallbackAdminLocation);
   const [roadRoute, setRoadRoute] = useState<{ latitude: string; longitude: string }[]>([]);
   const displayName = currentUser?.name || 'Admin';
@@ -386,10 +382,10 @@ export default function AdminDashboardScreen() {
   const mapDistance = mapTargetLocation ? calculateDistanceKm(adminLocation, mapTargetLocation) : null;
   const mapEtaMinutes = mapDistance ? Math.max(2, Math.round((mapDistance / 24) * 60)) : null;
   const routeRequestKey = useMemo(
-    () => assignedRequest && mapTargetLocation ? `${assignedRequest.id}:${mapTargetLocation.latitude},${mapTargetLocation.longitude}` : '',
-    // Route fetches are keyed by stable identifiers so GPS updates move only the marker.
+    () => assignedRequest && mapTargetLocation ? `${assignedRequest.id}:${routeBucket(adminLocation)}:${routeBucket(mapTargetLocation)}` : '',
+    // Bucketed GPS keys refresh the road line after meaningful movement without camera churn.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [assignedRequest?.id, mapTargetLocation?.latitude, mapTargetLocation?.longitude]
+    [assignedRequest?.id, adminLocation.latitude, adminLocation.longitude, mapTargetLocation?.latitude, mapTargetLocation?.longitude]
   );
 
   useEffect(() => {
@@ -534,6 +530,15 @@ export default function AdminDashboardScreen() {
       }
 
       updateMyLocation(location).catch(() => undefined);
+
+      const socket = getEmergencySocket();
+      if (socket && assignedRequest?.id) {
+        socket.emit(SOCKET_EVENTS.joinEmergencyRoom, { emergencyResponseId: assignedRequest.id });
+        socket.emit(SOCKET_EVENTS.sendLocation, {
+          emergencyResponseId: assignedRequest.id,
+          location,
+        });
+      }
     };
 
     getOptionalCurrentEmergencyLocation().then(publishLocation);
@@ -552,7 +557,7 @@ export default function AdminDashboardScreen() {
       subscription?.remove();
       clearInterval(intervalId);
     };
-  }, [responderStatus]);
+  }, [assignedRequest?.id, responderStatus]);
 
   const metrics = [
     {
@@ -948,7 +953,6 @@ export default function AdminDashboardScreen() {
 
         <Text style={[styles.settingsSectionTitle, styles.sectionGap, darkMode && styles.textDark]}>{tr('preference')}</Text>
         <SettingRow icon="moon" label={tr('darkMode')} value={darkMode} onValueChange={setDarkMode} />
-        <SettingRow icon="notifications" label={tr('notifications')} value={notifications} onValueChange={setNotifications} />
 
         <Text style={[styles.settingsSectionTitle, styles.sectionGap, darkMode && styles.textDark]}>{tr('language')}</Text>
         <View style={styles.settingRow}>
@@ -1145,6 +1149,17 @@ function calculateDistanceKm(left: { latitude: string; longitude: string }, righ
     Math.cos(toRad(leftLat)) * Math.cos(toRad(rightLat)) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
 
   return earthRadiusKm * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function routeBucket(location?: { latitude: string; longitude: string } | null) {
+  const latitude = Number(location?.latitude);
+  const longitude = Number(location?.longitude);
+
+  if (Number.isNaN(latitude) || Number.isNaN(longitude)) {
+    return '';
+  }
+
+  return `${Math.round(latitude * 2000) / 2000},${Math.round(longitude * 2000) / 2000}`;
 }
 
 const styles = StyleSheet.create({

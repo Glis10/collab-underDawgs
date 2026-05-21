@@ -31,7 +31,6 @@ type TranslationKey =
   | 'editName'
   | 'preference'
   | 'darkMode'
-  | 'notifications'
   | 'language'
   | 'english'
   | 'nepali'
@@ -114,7 +113,6 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     editName: 'Edit Name',
     preference: 'Preference',
     darkMode: 'Dark Mode',
-    notifications: 'Notifications',
     language: 'Language',
     english: 'English',
     nepali: 'Nepali',
@@ -196,7 +194,6 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     editName: 'नाम सम्पादन',
     preference: 'प्राथमिकता',
     darkMode: 'डार्क मोड',
-    notifications: 'सूचनाहरू',
     language: 'भाषा',
     english: 'अङ्ग्रेजी',
     nepali: 'नेपाली',

@@ -517,6 +517,7 @@ export function LeafletMap(props: LeafletMapProps) {
   // The WebView document stays mounted; live changes are sent through postMessage below.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const srcDoc = useMemo(() => buildGalliHtml({ ...props, mapId }) || buildLeafletHtml({ ...props, mapId }), [mapId]);
+  const webViewSource = useMemo(() => ({ html: srcDoc }), [srcDoc]);
   const mapUpdatePayload = useMemo(() => {
     const responders = (props.responderLocations && props.responderLocations.length > 0
       ? props.responderLocations
@@ -545,13 +546,21 @@ export function LeafletMap(props: LeafletMapProps) {
     }
 
     const payload = JSON.stringify(mapUpdatePayload);
+    const postUpdate = () => {
+      if (Platform.OS !== 'web') {
+        webViewRef.current?.injectJavaScript(`window.dispatchEvent(new MessageEvent('message', { data: ${JSON.stringify(payload)} })); true;`);
+        return;
+      }
 
-    if (Platform.OS !== 'web') {
-      webViewRef.current?.injectJavaScript(`window.dispatchEvent(new MessageEvent('message', { data: ${JSON.stringify(payload)} })); true;`);
-      return;
-    }
+      iframeRef.current?.contentWindow?.postMessage(payload, '*');
+    };
 
-    iframeRef.current?.contentWindow?.postMessage(payload, '*');
+    postUpdate();
+    const timers = [350, 1200].map((delay) => setTimeout(postUpdate, delay));
+
+    return () => {
+      timers.forEach(clearTimeout);
+    };
   }, [mapUpdatePayload, srcDoc]);
 
   useEffect(() => {
@@ -592,7 +601,7 @@ export function LeafletMap(props: LeafletMapProps) {
       <WebView
         ref={webViewRef}
         originWhitelist={['*']}
-        source={{ html: srcDoc }}
+        source={webViewSource}
         style={{ backgroundColor: '#eef6f7', height, width: '100%' }}
         javaScriptEnabled
         domStorageEnabled

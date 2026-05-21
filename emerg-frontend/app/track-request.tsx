@@ -216,17 +216,27 @@ export function TrackRequestContent({ bottomSpacer = 96, onGoHome }: TrackReques
         .catch(() => undefined);
     };
 
-    const updateProviderLocation = (payload: { location?: EmergencyLocation }) => {
+    const updateProviderLocation = (payload: { emergencyResponseId?: string; providerId?: string; location?: EmergencyLocation }) => {
       if (!payload.location?.latitude || !payload.location.longitude) {
         return;
       }
 
       setTrackingDetailsList((current) =>
-        current.map((details, index) =>
-          index === 0 && details.responderDetails
+        current.map((details, index) => {
+          const detailsId = details.id || details.emergencyRequestId;
+          const matchesRequest = !payload.emergencyResponseId || payload.emergencyResponseId === detailsId;
+          const matchesProvider = !payload.providerId || payload.providerId === details.responderDetails?.id || payload.providerId === details.responder?.serviceProviderId;
+
+          return (matchesRequest || (index === 0 && current.length === 1)) && matchesProvider && details.responderDetails
             ? { ...details, responderDetails: { ...details.responderDetails, currentLocation: payload.location } }
-            : details
-        )
+            : details;
+        })
+      );
+
+      setTrackingDetails((details) =>
+        details?.responderDetails
+          ? { ...details, responderDetails: { ...details.responderDetails, currentLocation: payload.location } }
+          : details
       );
     };
 
@@ -244,6 +254,21 @@ export function TrackRequestContent({ bottomSpacer = 96, onGoHome }: TrackReques
       socket.off(SOCKET_EVENTS.providerLocationUpdated, updateProviderLocation);
     };
   }, [dismissedFeedbackIds]);
+
+  useEffect(() => {
+    const socket = getEmergencySocket();
+
+    if (!socket) {
+      return;
+    }
+
+    activeRequests
+      .map((request) => request.emergencyRequestId || request.id)
+      .filter(Boolean)
+      .forEach((emergencyResponseId) => {
+        socket.emit(SOCKET_EVENTS.joinEmergencyRoom, { emergencyResponseId });
+      });
+  }, [activeRequests]);
 
   const responderLocations = trackingDetailsList
     .filter((details) => details.requestStatus === 'approved' || details.requestStatus === 'assigned' || details.requestStatus === 'in_progress')
@@ -263,7 +288,7 @@ export function TrackRequestContent({ bottomSpacer = 96, onGoHome }: TrackReques
   const etaMinutes = routeDistance ? Math.max(2, Math.round((routeDistance / 24) * 60)) : null;
   const mapHeight = isSheetExpanded ? 420 : 640;
   const routeKey = isAccepted && responderLocation
-    ? `${activeRequest?.emergencyRequestId || activeRequest?.id}:${userLocation.latitude},${userLocation.longitude}`
+    ? `${activeRequest?.emergencyRequestId || activeRequest?.id}:${routeBucket(responderLocation)}:${routeBucket(userLocation)}`
     : '';
   const completedFeedbackRequestId = completedRequest ? getRequestId(completedRequest) : '';
   const sheetPanResponder = useMemo(
@@ -610,6 +635,17 @@ function calculateDistanceKm(left: EmergencyLocation, right: EmergencyLocation) 
     Math.cos(toRad(leftLat)) * Math.cos(toRad(rightLat)) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
 
   return earthRadiusKm * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function routeBucket(location?: EmergencyLocation | null) {
+  const latitude = Number(location?.latitude);
+  const longitude = Number(location?.longitude);
+
+  if (Number.isNaN(latitude) || Number.isNaN(longitude)) {
+    return '';
+  }
+
+  return `${Math.round(latitude * 2000) / 2000},${Math.round(longitude * 2000) / 2000}`;
 }
 
 export default function TrackRequestScreen() {

@@ -1,0 +1,366 @@
+Backend and Frontend Integration Viva Notes
+==========================================
+
+Project parts
+-------------
+- Backend project:
+  C:\Users\Anujl\OneDrive\Documents\collab-backend
+
+- Frontend project:
+  C:\Users\Anujl\OneDrive\Documents\collab-underDawgs\emerg-frontend
+
+- The backend is an Express/Node.js API with MongoDB models, authentication, emergency request APIs, admin APIs, maps APIs, and Socket.IO realtime events.
+
+- The frontend is an Expo React Native app. It calls backend REST APIs using fetch and receives realtime updates using socket.io-client.
+
+
+How the frontend knows the backend URL
+--------------------------------------
+- The frontend uses this environment variable:
+  EXPO_PUBLIC_API_BASE_URL
+
+- It is read inside:
+  src/lib/auth.ts
+
+- The value should point to the backend API base URL, for example:
+  http://192.168.x.x:8000/api
+
+- This IP should usually be the laptop's local network IP, because Expo Go runs on the phone and the phone cannot use localhost to reach the laptop backend.
+
+- All frontend API calls use:
+  fetch(`${API_BASE_URL}${path}`)
+
+- Example:
+  If API_BASE_URL is http://192.168.1.10:8000/api
+  and the frontend calls /auth/login,
+  the full URL becomes:
+  http://192.168.1.10:8000/api/auth/login
+
+
+Main API integration file
+-------------------------
+- Most frontend backend calls are centralized in:
+  src/lib/auth.ts
+
+- This file handles:
+  - login
+  - registration
+  - OTP
+  - password reset
+  - emergency request creation
+  - emergency request tracking
+  - admin emergency list
+  - approve/reject/resolve emergency requests
+  - profile location updates
+  - route fetching from the backend maps endpoint
+
+- Keeping API calls in one file makes the app easier to maintain because screens do not repeat fetch logic.
+
+
+Authentication flow
+-------------------
+1. The user or admin enters phone number and password.
+
+2. The frontend calls:
+   POST /api/auth/login
+
+3. The backend verifies the credentials and returns:
+   - token
+   - user profile
+
+4. The frontend stores these in memory:
+   - authToken
+   - currentUser
+
+5. For protected requests, the frontend sends:
+   Authorization: Bearer <token>
+
+6. The backend auth middleware checks the token and identifies the logged-in user.
+
+
+Why auth state updates the UI
+-----------------------------
+- The frontend keeps currentUser in src/lib/auth.ts.
+
+- The layout uses an auth listener system:
+  getAuthRevision()
+  subscribeAuthChanges()
+
+- When login/logout happens, auth listeners are notified.
+
+- This lets app/_layout.tsx re-render and show user-only UI like the AI assistant after login.
+
+
+Registration and OTP integration
+--------------------------------
+- Registration uses email OTP.
+
+- Frontend flow:
+  1. User enters email and details in app/SignUp.tsx.
+  2. Frontend calls sendRegistrationOtp().
+  3. Backend sends OTP to email.
+  4. User enters OTP.
+  5. Frontend calls registerUser() with otpToken.
+  6. Backend verifies OTP and creates the user.
+
+- Forgot password also uses OTP:
+  - app/ForgotPassword.tsx requests OTP.
+  - app/OtpVerification.tsx accepts the OTP.
+  - app/ResetPassword.tsx sets the new password.
+
+
+Emergency request flow
+----------------------
+1. User selects emergency type or presses SOS.
+
+2. Frontend gets location using expo-location:
+   src/lib/location.ts
+
+3. Frontend sends request to backend:
+   POST /api/v1/emergency-request
+   or SOS/admin-related API depending on the screen.
+
+4. Backend stores emergency request with:
+   - user ID
+   - emergency type
+   - description
+   - location coordinates
+   - location name when available
+   - request status
+
+5. Backend emits Socket.IO events so dashboards update without manual refresh.
+
+6. User can track the request in:
+   app/track-request.tsx
+
+7. Admin/provider can see and accept requests in:
+   app/admin-dashboard.tsx
+
+
+Admin/provider request flow
+---------------------------
+- Admin dashboard loads active and completed emergencies using:
+  getAdminEmergencyRequests()
+
+- Admin can accept, reject, or resolve a request.
+
+- These frontend functions call backend endpoints:
+  approveAdminEmergencyRequest()
+  rejectAdminEmergencyRequest()
+  resolveAdminEmergencyRequest()
+
+- When a request is accepted, the backend assigns a responder and emits realtime lifecycle events:
+  request_accepted
+  request_status_updated
+
+- The user tracking screen listens for those events and refreshes request details.
+
+
+Socket.IO realtime integration
+------------------------------
+- Frontend Socket.IO setup is in:
+  src/lib/socket.ts
+
+- The frontend creates one shared socket connection using:
+  io(getSocketUrl(), {
+    transports: ['websocket'],
+    auth: { token }
+  })
+
+- The backend authenticates the socket using the same JWT token.
+
+- Important socket events:
+  - new_request
+  - request_accepted
+  - request_declined
+  - request_status_updated
+  - provider_location_updated
+  - joinEmergencyRoom
+  - sendLocation
+
+- The user tracking screen joins active emergency rooms:
+  socket.emit('joinEmergencyRoom', { emergencyResponseId })
+
+- The provider/admin side sends live GPS updates:
+  socket.emit('sendLocation', { emergencyResponseId, location })
+
+- The backend broadcasts the responder location to users in the same emergency room:
+  provider_location_updated
+
+
+How live provider tracking works
+--------------------------------
+- The provider/admin dashboard watches the responder's phone GPS using:
+  watchEmergencyLocation()
+
+- That function uses expo-location:
+  Location.watchPositionAsync()
+
+- The app receives new coordinates every few seconds or after movement.
+
+- For every new provider location:
+  1. Frontend updates local admin/provider marker.
+  2. Frontend sends the location to backend using PATCH /auth/me/location.
+  3. Frontend emits sendLocation through Socket.IO.
+  4. Backend broadcasts provider_location_updated.
+  5. User tracking screen updates the responder marker on the map.
+
+- This means if the provider is in a car and moving, the marker can move according to the provider's real GPS position.
+
+
+Street route tracking
+---------------------
+- The blue street route is not just a straight line.
+
+- The frontend asks the backend for a road route using:
+  getOptimalRoute()
+
+- That calls:
+  GET /api/v1/maps/optimal-route
+
+- The frontend sends:
+  - source latitude
+  - source longitude
+  - destination latitude
+  - destination longitude
+  - travel mode, usually DRIVING
+
+- The backend maps utility gets a route from the configured map service.
+
+- The frontend parses route geometry using:
+  src/lib/routes.ts
+
+- The map receives routeCoordinates and draws the blue path.
+
+- In viva, you can say:
+  "The marker movement is realtime through Socket.IO, while the blue street route is calculated through the backend maps API and drawn on the frontend map."
+
+
+Why the map was reloading and how it was fixed
+----------------------------------------------
+- The app uses a WebView-based map component:
+  src/components/leaflet-map.tsx
+
+- The map can use Galli Maps through MapLibre when a Galli token exists.
+
+- It can also fall back to OpenStreetMap/Leaflet.
+
+- A common issue is that React prop changes can reload the WebView. When the WebView reloads, zoom, angle, and route layers can reset.
+
+- To fix this:
+  - The initial map HTML is memoized.
+  - The WebView source object is memoized.
+  - Live marker and route changes are sent with postMessage instead of remounting the WebView.
+  - The map updates markers and route layers inside the existing map instance.
+
+- This keeps:
+  - zoom stable
+  - angle stable
+  - map position stable
+  - blue street route visible
+
+
+How route refresh is controlled
+-------------------------------
+- If the provider location changes every few seconds, fetching a new road route every time can be expensive and can cause map instability.
+
+- The app uses a bucketed route key.
+
+- Small GPS movements update only the marker.
+
+- Bigger movement changes refresh the road route.
+
+- This gives a smoother experience:
+  - marker moves live
+  - blue street route updates when needed
+  - map does not keep resetting
+
+
+Manual location selection
+-------------------------
+- In service request screen, the user can choose:
+  - Auto GPS
+  - Manual map pin
+
+- Auto GPS uses expo-location.
+
+- Manual mode lets the user tap on the WebView map.
+
+- The WebView sends selected coordinates back to React Native using postMessage.
+
+- The selected coordinates are sent to the backend as the emergency location.
+
+
+Why Socket.IO is used instead of only REST API
+---------------------------------------------
+- REST API is good for direct actions:
+  - login
+  - create request
+  - accept request
+  - load details
+
+- Socket.IO is better for realtime updates:
+  - new emergency request appears
+  - admin accepts request
+  - provider location changes
+  - request status changes
+
+- Without Socket.IO, the frontend would need to keep polling the backend very often.
+
+
+Why notifications were removed
+------------------------------
+- expo-notifications push notification functionality was removed from Expo Go for Android starting SDK 53.
+
+- The app is using Expo SDK 54, so keeping expo-notifications caused a console error in Expo Go.
+
+- The notification dependency, plugin, Android POST_NOTIFICATIONS permission, notification helper file, and notification token registration code were removed.
+
+- The app now depends on Socket.IO realtime updates while the app is open.
+
+
+Possible viva questions and answers
+-----------------------------------
+Q: How did you connect frontend and backend?
+A: The frontend uses an environment variable EXPO_PUBLIC_API_BASE_URL to know the backend URL. API functions in src/lib/auth.ts use fetch to call backend routes. Protected routes include the JWT token in the Authorization header.
+
+Q: How does login work?
+A: The frontend sends phone number and password to /api/auth/login. The backend validates credentials and returns a JWT token and user details. The frontend stores them in memory and uses the token for later requests.
+
+Q: How does realtime tracking work?
+A: Realtime tracking uses Socket.IO. The provider app watches GPS location and emits sendLocation. The backend broadcasts provider_location_updated to the emergency room. The user tracking screen receives it and updates the provider marker.
+
+Q: How is the blue street route shown?
+A: The frontend calls the backend maps route endpoint with source and destination coordinates. The backend returns route geometry. The frontend extracts the coordinates and draws a blue polyline on the map.
+
+Q: Is the route a straight line?
+A: No. It uses route coordinates from the maps API, so it follows roads/streets when the route service returns road geometry.
+
+Q: Why does the map not reload every time the provider moves?
+A: The WebView map HTML is kept stable. Location changes are sent into the existing map using postMessage. The marker position and route layer are updated inside the map without remounting the WebView.
+
+Q: How does provider location change when they are in a car?
+A: The provider/admin dashboard uses Location.watchPositionAsync from expo-location. As GPS coordinates change, the app updates the provider location and emits it through Socket.IO.
+
+Q: Why use both REST API and Socket.IO?
+A: REST API is used for normal request/response actions like login, creating requests, and loading details. Socket.IO is used for realtime events like new requests, status updates, and live location.
+
+Q: What happens when an admin accepts a request?
+A: The frontend calls the approve API. The backend changes the request status, creates/updates an emergency response record, assigns the responder, and emits realtime events so the user and dashboards update.
+
+Q: How does the frontend know which realtime location belongs to which request?
+A: The tracking screen joins emergency-specific socket rooms using the emergency request ID. Location payloads include emergencyResponseId/providerId, and the frontend updates the matching tracking details.
+
+Q: How did you avoid too many route API calls?
+A: Small GPS changes only update the marker. The route is recalculated only after meaningful movement using a rounded/bucketed route key.
+
+Q: Why was expo-notifications removed?
+A: Expo Go no longer supports Android push notification functionality from expo-notifications since SDK 53. Since this app runs on SDK 54 in Expo Go, that package caused an error, so notification code was removed.
+
+Q: How can the app still update without notifications?
+A: While the app is open, Socket.IO provides realtime updates. Push notifications would only be needed for background/offline notifications, which would require a custom development build instead of Expo Go.
+
+
+Short explanation to say in viva
+--------------------------------
+"The frontend and backend are connected through REST APIs and Socket.IO. REST APIs handle actions like login, registration, emergency creation, approval, and route fetching. Socket.IO handles realtime events like new requests, request status updates, and provider live location. For tracking, the provider phone watches GPS using expo-location and sends coordinates to the backend through sockets. The user tracking screen joins the emergency room and receives provider_location_updated events. The map is WebView based, and instead of reloading the map, we send marker and route updates into the existing map using postMessage. The blue street route comes from the backend maps route API and is drawn as a polyline on the frontend."
